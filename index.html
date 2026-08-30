@@ -34,9 +34,25 @@
   }
   select{
     background:var(--panel); border:1px solid var(--line); border-radius:8px;
-    padding:8px 10px; color:var(--text); font-family:'JetBrains Mono',monospace; font-size:12px; max-width:200px;
+    padding:8px 10px; color:var(--text); font-family:'JetBrains Mono',monospace; font-size:12px; max-width:160px;
   }
   select:focus{ outline:none; border-color:var(--hot); }
+  .search-wrap{ position:relative; }
+  #placeSearch{
+    width:230px; background:var(--panel); border:1px solid var(--line); border-radius:8px;
+    padding:8px 10px; color:var(--text); font-family:'JetBrains Mono',monospace; font-size:12px;
+  }
+  #placeSearch:focus{ outline:none; border-color:var(--hot); }
+  .search-results{
+    position:absolute; top:calc(100% + 6px); left:0; width:300px; max-height:280px; overflow-y:auto;
+    background:#0e1430; border:1px solid var(--line); border-radius:10px; padding:6px; z-index:60; display:none;
+    box-shadow:0 14px 30px rgba(0,0,0,0.4);
+  }
+  .search-results.show{ display:block; }
+  .search-item{ padding:9px 11px; border-radius:7px; cursor:pointer; font-family:'JetBrains Mono',monospace; }
+  .search-item:hover{ background:rgba(255,255,255,0.06); }
+  .search-item .nm{ color:var(--text); font-weight:500; font-size:12.5px; }
+  .search-item .ctx{ color:var(--muted); font-size:10.5px; margin-top:2px; }
   input[type=number]:focus{ outline:none; border-color:var(--hot); }
   button{
     background:var(--hot); color:#180f00; border:none; font-family:'JetBrains Mono',monospace; font-weight:500;
@@ -122,7 +138,11 @@
 
 <div class="topbar">
   <div class="brand"><i>SkyScore</i></div>
-  <select id="citySelect"><option value="">Choose a city…</option></select>
+  <div class="search-wrap">
+    <input type="text" id="placeSearch" placeholder="Search any place, college, hostel...">
+    <div class="search-results" id="searchResults"></div>
+  </div>
+  <select id="citySelect"><option value="">Quick pick…</option></select>
   <input type="number" id="lat" step="0.01" placeholder="lat" title="Latitude">
   <input type="number" id="lon" step="0.01" placeholder="lon" title="Longitude">
   <button class="ghost" id="locBtn">Use my location</button>
@@ -160,7 +180,7 @@
 
 <section class="model">
   <p><code>SkyScore = 100 × darkness × (1 − 0.55 × moon) × (1 − 0.85 × cloud) × (1 − 0.4 × light pollution)</code></p>
-  <p>Darkness comes from the sun's real altitude. Cloud cover, a live hourly forecast from Open-Meteo, carries the heaviest weight since it can block an otherwise perfect sky outright. Light pollution uses a known Bortle class for the cities in the dropdown, since a single stale satellite pixel at city scale can be misleading; for any other coordinates it falls back to sampling NASA's VIIRS City Lights composite, labeled as an estimate since that data is coarse and from 2012. It's constant across the night either way, so it acts as a ceiling rather than a swing factor. Moon interference uses an approximate lunar position and phase illumination.</p>
+  <p>Darkness comes from the sun's real altitude. Cloud cover, a live hourly forecast from Open-Meteo, carries the heaviest weight since it can block an otherwise perfect sky outright. Light pollution uses a known Bortle class matched against the city returned by search (so a hostel or building inside a known city gets that city's real rating, not a rough satellite guess); for places outside that list it falls back to sampling NASA's VIIRS City Lights composite from 2012, clearly labeled as an estimate, since no free, unlimited, precise Bortle API exists for arbitrary points. It's constant across the night either way, so it acts as a ceiling rather than a swing factor. For anything critical, cross-check against <a href="https://www.lightpollutionmap.info" style="color:var(--hot);" target="_blank" rel="noopener">lightpollutionmap.info</a>, which uses a properly calibrated model. Moon interference uses an approximate lunar position and phase illumination.</p>
 </section>
 <footer>Everything runs in your browser. Coordinates are only sent to the weather and satellite-imagery services needed to answer the question.</footer>
 
@@ -391,6 +411,75 @@ document.getElementById('citySelect').addEventListener('change', (e)=>{
 });
 document.getElementById('lat').addEventListener('input', ()=>{ knownBortle = null; });
 document.getElementById('lon').addEventListener('input', ()=>{ knownBortle = null; });
+
+/* ================= expanded known-Bortle lookup (used by search results too) ================= */
+const BORTLE_LOOKUP = {};
+CITIES.forEach(c=>{ BORTLE_LOOKUP[c.n.toLowerCase().replace(/\s*\(.*\)$/,'')] = c.b; });
+Object.assign(BORTLE_LOOKUP, {
+  jabalpur:7, nagpur:7, bhubaneswar:6, guwahati:6, coimbatore:7, nashik:6, vadodara:7, surat:8,
+  kanpur:8, patna:7, ranchi:6, raipur:6, amritsar:7, varanasi:7, agra:7, mysore:6, mysuru:6,
+  visakhapatnam:7, thiruvananthapuram:6, dehradun:6, shimla:4, manali:3, leh:2, rishikesh:5, udaipur:6
+});
+function matchKnownBortle(name){
+  if(!name) return null;
+  const key = name.trim().toLowerCase();
+  return (key in BORTLE_LOOKUP) ? BORTLE_LOOKUP[key] : null;
+}
+
+/* ================= place search (Photon / OpenStreetMap, free, no key) ================= */
+const searchInput = document.getElementById('placeSearch');
+const searchResultsEl = document.getElementById('searchResults');
+let searchDebounce = null;
+
+searchInput.addEventListener('input', ()=>{
+  clearTimeout(searchDebounce);
+  const q = searchInput.value.trim();
+  if(q.length < 3){ searchResultsEl.classList.remove('show'); return; }
+  searchDebounce = setTimeout(()=>doSearch(q), 350);
+});
+
+async function doSearch(q){
+  try{
+    const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=7`);
+    if(!res.ok) throw 0;
+    const data = await res.json();
+    renderSearchResults(data.features || []);
+  }catch(e){
+    searchResultsEl.innerHTML = '<div class="search-item" style="color:var(--muted);cursor:default;">search unavailable right now</div>';
+    searchResultsEl.classList.add('show');
+  }
+}
+
+function renderSearchResults(features){
+  searchResultsEl.innerHTML = '';
+  if(!features.length){
+    searchResultsEl.innerHTML = '<div class="search-item" style="color:var(--muted);cursor:default;">no matches found</div>';
+    searchResultsEl.classList.add('show');
+    return;
+  }
+  features.forEach(f=>{
+    const p = f.properties || {};
+    const [lon, lat] = f.geometry.coordinates;
+    const name = p.name || p.street || 'Unnamed place';
+    const ctx = [p.city, p.state, p.country].filter(Boolean).join(', ');
+    const item = document.createElement('div');
+    item.className = 'search-item';
+    item.innerHTML = `<div class="nm">${name}</div><div class="ctx">${ctx || 'coordinates only'}</div>`;
+    item.addEventListener('click', ()=>{
+      knownBortle = matchKnownBortle(p.city) ?? matchKnownBortle(p.county) ?? matchKnownBortle(p.state) ?? null;
+      document.getElementById('lat').value = lat.toFixed(4);
+      document.getElementById('lon').value = lon.toFixed(4);
+      searchInput.value = name;
+      searchResultsEl.classList.remove('show');
+      run();
+    });
+    searchResultsEl.appendChild(item);
+  });
+  searchResultsEl.classList.add('show');
+}
+document.addEventListener('click', (e)=>{
+  if(!searchInput.contains(e.target) && !searchResultsEl.contains(e.target)) searchResultsEl.classList.remove('show');
+});
 
 async function fetchCloud(lat, lon){
   try{
