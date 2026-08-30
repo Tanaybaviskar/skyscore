@@ -253,6 +253,57 @@ function bortleInfo(frac){
   return {b,label};
 }
 
+/* ================= India regional grid (pre-built static file, no server, no rate limit) ================= */
+const INDIA_BOUNDS = {minLat:6, maxLat:37.5, minLon:68, maxLon:97.5};
+// Fetches the pre-built grid from your repo (see build_grid.py to regenerate it).
+const INDIA_GRID_URL = 'https://raw.githubusercontent.com/Tanaybaviskar/skyscore/main/india_bortle_grid.bin';
+let indiaGridPromise = null;
+function loadIndiaGrid(){
+  if(!indiaGridPromise){
+    indiaGridPromise = fetch(INDIA_GRID_URL)
+      .then(r=>{ if(!r.ok) throw 0; return r.arrayBuffer(); })
+      .then(buf=>{
+        const dv = new DataView(buf);
+        return {
+          minLat: dv.getFloat32(0,true), minLon: dv.getFloat32(4,true), step: dv.getFloat32(8,true),
+          cols: dv.getInt32(12,true), rows: dv.getInt32(16,true), grid: new Uint8Array(buf,20)
+        };
+      })
+      .catch(()=>null);
+  }
+  return indiaGridPromise;
+}
+async function tryIndiaGrid(lat, lon){
+  if(lat<INDIA_BOUNDS.minLat || lat>INDIA_BOUNDS.maxLat || lon<INDIA_BOUNDS.minLon || lon>INDIA_BOUNDS.maxLon) return null;
+  const g = await loadIndiaGrid();
+  if(!g) return null;
+  const r0 = Math.round((lat-g.minLat)/g.step), c0 = Math.round((lon-g.minLon)/g.step);
+  for(let rad=0; rad<=2; rad++){
+    for(let dr=-rad; dr<=rad; dr++){
+      for(let dc=-rad; dc<=rad; dc++){
+        const r=r0+dr, c=c0+dc;
+        if(r<0||r>=g.rows||c<0||c>=g.cols) continue;
+        const v = g.grid[r*g.cols+c];
+        if(v>0) return v;
+      }
+    }
+  }
+  return null;
+}
+
+/* ================= light pollution resolution chain: known city > India grid > satellite ================= */
+async function resolveLight(lat, lon, knownAtRun){
+  if(knownAtRun !== null){
+    return { frac: bortleToFrac(knownAtRun), b: knownAtRun, source: 'known' };
+  }
+  const gridVal = await tryIndiaGrid(lat, lon);
+  if(gridVal !== null){
+    return { frac: bortleToFrac(gridVal), b: gridVal, source: 'grid' };
+  }
+  const sat = await estimateLightPollution(lat, lon);
+  return { frac: sat.frac, b: bortleInfo(sat.frac).b, source: sat.ok ? 'satellite' : 'satellite-fallback' };
+}
+
 function estimateLightPollution(lat, lon){
   return new Promise((resolve)=>{
     const z=8, n=Math.pow(2,z), latRad=lat*RAD;
@@ -672,17 +723,18 @@ async function run(){
   const knownAtRun = knownBortle;
   const [cloudSeries, light] = await Promise.all([
     fetchCloud(lat,lon),
-    knownAtRun!==null ? Promise.resolve({frac: bortleToFrac(knownAtRun), ok:true, known:true}) : estimateLightPollution(lat,lon)
+    resolveLight(lat, lon, knownAtRun)
   ]);
   const notes = [];
   if(!cloudSeries) notes.push('cloud forecast unavailable, defaulting to clear');
-  if(!light.ok) notes.push('satellite light data unavailable, using an estimate');
+  if(light.source === 'satellite-fallback') notes.push('satellite light data unavailable, using a rough estimate');
   statusEl.textContent = notes.join(' · ');
 
-  const bortle = light.known ? {b:knownAtRun, label: bortleInfo(light.frac).label} : bortleInfo(light.frac);
+  const bortle = { b: light.b, label: bortleInfo(light.frac).label };
+  const sourceLabel = { known:'', grid:' (regional grid)', satellite:' (est.)', 'satellite-fallback':' (est.)' }[light.source];
   document.getElementById('bortleBadge').textContent = bortle.b;
   document.getElementById('lightName').textContent = bortle.label;
-  document.getElementById('lightPct').textContent = 'Bortle ' + bortle.b + (light.known ? '' : ' (est.)');
+  document.getElementById('lightPct').textContent = 'Bortle ' + bortle.b + sourceLabel;
 
   const todayMidnight = new Date(); todayMidnight.setHours(0,0,0,0);
   const weekly = [];
