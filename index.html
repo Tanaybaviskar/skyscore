@@ -3,154 +3,193 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SkyScore — tonight's best window to look up</title>
+<title>SkyScore — scroll through tonight's sky</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg:#050810; --bg2:#0c1226;
     --dim:#3a3f66; --mid:#6f8cff; --hot:#ffd166;
-    --text:#eef0fb; --muted:#7a80a3; --line:#20264a; --panel:#0e1430cc;
+    --text:#eef0fb; --muted:#8890b3; --line:#232a52; --panel:#0e1430cc;
+    --shift: 0;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
-  html,body{ background:radial-gradient(ellipse at 50% 0%, var(--bg2), var(--bg) 60%); color:var(--text); font-family:'Work Sans',sans-serif; min-height:100vh; overflow-x:hidden;}
+  html{ scroll-behavior:smooth; }
+  body{
+    background: var(--bg); color:var(--text); font-family:'Work Sans',sans-serif; overflow-x:hidden;
+  }
   ::selection{ background:var(--hot); color:#150e00; }
 
-  #stars{ position:fixed; inset:0; z-index:0; }
-  .content{ position:relative; z-index:1; }
-
-  header{ padding:52px 6vw 6px; max-width:920px; }
-  .eyebrow{ font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--hot); margin-bottom:14px; }
-  h1{ font-family:'Cormorant Garamond',serif; font-weight:600; font-size:clamp(32px,4.6vw,56px); line-height:1.06; }
-  h1 i{ font-style:italic; color:var(--muted); font-weight:500; }
-  p.sub{ color:var(--muted); font-size:15px; line-height:1.6; margin-top:14px; max-width:60ch; }
-
-  .controls{ display:flex; gap:10px; flex-wrap:wrap; margin-top:26px; align-items:center; }
-  input[type=number]{
-    width:110px; background:var(--panel); border:1px solid var(--line); border-radius:9px;
-    padding:11px 12px; color:var(--text); font-family:'JetBrains Mono',monospace; font-size:13px;
+  /* ---- top control bar ---- */
+  .topbar{
+    position:fixed; top:0; left:0; right:0; z-index:50;
+    display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+    padding:14px 20px; backdrop-filter: blur(10px); background:rgba(5,8,16,0.55);
+    border-bottom:1px solid var(--line);
   }
+  .topbar .brand{ font-family:'Cormorant Garamond',serif; font-style:italic; font-size:19px; margin-right:auto; }
+  input[type=number]{
+    width:88px; background:var(--panel); border:1px solid var(--line); border-radius:8px;
+    padding:8px 10px; color:var(--text); font-family:'JetBrains Mono',monospace; font-size:12px;
+  }
+  select{
+    background:var(--panel); border:1px solid var(--line); border-radius:8px;
+    padding:8px 10px; color:var(--text); font-family:'JetBrains Mono',monospace; font-size:12px; max-width:200px;
+  }
+  select:focus{ outline:none; border-color:var(--hot); }
   input[type=number]:focus{ outline:none; border-color:var(--hot); }
-  label{ font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); display:flex; flex-direction:column; gap:5px; }
   button{
     background:var(--hot); color:#180f00; border:none; font-family:'JetBrains Mono',monospace; font-weight:500;
-    font-size:13px; padding:12px 18px; border-radius:9px; cursor:pointer; align-self:flex-end;
-    transition: transform .15s ease, box-shadow .15s ease;
+    font-size:12px; padding:9px 14px; border-radius:8px; cursor:pointer; transition:transform .15s ease;
   }
-  button:hover{ transform:translateY(-1px); box-shadow:0 6px 22px rgba(255,209,102,.25); }
+  button:hover{ transform:translateY(-1px); }
   button.ghost{ background:transparent; border:1px solid var(--line); color:var(--muted); }
-  button.ghost:hover{ color:var(--text); border-color:var(--muted); box-shadow:none; }
+  button.ghost:hover{ color:var(--text); border-color:var(--muted); }
+  .status{ font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); width:100%; margin-top:4px; }
 
-  .container{ padding:0 6vw; }
-
-  .hero-score{ display:flex; gap:40px; flex-wrap:wrap; align-items:flex-end; margin-top:38px; }
-  .big{ font-family:'Cormorant Garamond',serif; font-weight:600; font-size:clamp(48px,7vw,88px); line-height:1; }
-  .big .unit{ font-size:.35em; color:var(--muted); font-weight:500; margin-left:8px; }
-  .window-lbl{ font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px; }
-  .moon-card{ display:flex; align-items:center; gap:14px; margin-left:auto; }
-  .moon-card canvas{ width:54px; height:54px; }
-  .moon-card .mtext .n{ font-family:'Cormorant Garamond',serif; font-size:20px; font-style:italic; }
-  .moon-card .mtext .p{ font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); }
-  .bortle-badge{
-    width:54px; height:54px; border-radius:50%; display:flex; align-items:center; justify-content:center;
-    font-family:'JetBrains Mono',monospace; font-weight:500; font-size:18px; flex-shrink:0;
-    border:2px solid var(--line); background:radial-gradient(circle, rgba(255,209,102,0.12), transparent 70%);
+  /* ---- vertical scroll-scrubbed hero ---- */
+  .hero-scroll{ position:relative; z-index:1; }
+  .pinned{
+    position:sticky; top:0; height:100vh; overflow:hidden;
+    display:flex; flex-direction:column; justify-content:center; align-items:center;
+    background: radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--bg2) calc(60% + var(--shift)*20%), var(--bg)), var(--bg) 70%);
   }
+  canvas#stars, canvas#arc{ position:absolute; inset:0; width:100%; height:100%; }
+  canvas#arc{ pointer-events:none; }
 
-  .stage{ position:relative; width:100%; height:min(38vh,320px); margin-top:34px; }
-  canvas.timeline{ width:100%; height:100%; display:block; }
+  .readout{ position:relative; z-index:2; text-align:center; pointer-events:none; }
+  .phase-lbl{ font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--hot); margin-bottom:10px; opacity:.9; }
+  .score-big{ font-family:'Cormorant Garamond',serif; font-weight:600; font-size:clamp(72px,13vw,150px); line-height:1; }
+  .score-big .u{ font-size:.28em; color:var(--muted); font-weight:500; margin-left:6px; }
+  .time-lbl{ font-family:'JetBrains Mono',monospace; font-size:15px; color:var(--muted); margin-top:8px; }
+  .caption{ font-family:'Cormorant Garamond',serif; font-style:italic; font-size:20px; color:var(--text); margin-top:16px; max-width:36ch; margin-left:auto; margin-right:auto; min-height:28px; }
 
-  .facts{ display:flex; gap:34px; flex-wrap:wrap; margin-top:18px; padding-bottom:14px; font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--muted); }
-  .facts b{ color:var(--text); font-weight:500; }
+  .badges{ position:absolute; bottom:34px; left:0; right:0; display:flex; justify-content:center; gap:22px; z-index:2; }
+  .badge{ display:flex; align-items:center; gap:10px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:9px 14px; }
+  .badge canvas{ width:30px; height:30px; }
+  .badge .dot{ width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:12px; border:1.5px solid var(--line); }
+  .badge .t{ font-family:'JetBrains Mono',monospace; font-size:11px; }
+  .badge .t b{ display:block; font-size:12px; font-weight:500; color:var(--text); }
+  .badge .t span{ color:var(--muted); }
 
-  footer{ padding:26px 6vw 50px; color:var(--muted); font-size:12px; font-family:'JetBrains Mono',monospace; border-top:1px solid var(--line); max-width:920px; line-height:1.6; }
-  footer code{ color:var(--hot); }
-  .status{ font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--muted); margin-top:10px; }
+  .scroll-hint{
+    position:absolute; top:26px; left:0; right:0; text-align:center; z-index:2;
+    font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:.08em;
+    animation: bob 2.4s ease-in-out infinite;
+  }
+  @keyframes bob{ 0%,100%{ transform:translateY(0); opacity:.7; } 50%{ transform:translateY(6px); opacity:1; } }
+
+  /* ---- horizontal snap gallery ---- */
+  .hgallery-wrap{ position:relative; z-index:2; background:var(--bg); padding:70px 0 40px; border-top:1px solid var(--line); }
+  .hgallery-head{ padding:0 6vw; margin-bottom:22px; }
+  .hgallery-head .eyebrow{ font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--hot); margin-bottom:8px; }
+  .hgallery-head h2{ font-family:'Cormorant Garamond',serif; font-weight:600; font-size:clamp(24px,3vw,34px); }
+  .hgallery-head p{ color:var(--muted); font-size:13px; margin-top:6px; }
+
+  .hgallery{
+    display:flex; gap:14px; overflow-x:auto; padding:6px 6vw 20px; scroll-snap-type:x proximity;
+    scrollbar-width: thin; scrollbar-color: var(--line) transparent;
+  }
+  .hgallery::-webkit-scrollbar{ height:6px; }
+  .hgallery::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+  .hcard{
+    scroll-snap-align:start; flex:0 0 150px; background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    padding:16px 14px; cursor:pointer; transition:border-color .2s ease, transform .2s ease;
+  }
+  .hcard:hover{ transform:translateY(-3px); border-color:var(--hot); }
+  .hcard.best{ border-color:var(--hot); box-shadow:0 0 22px rgba(255,209,102,0.18); }
+  .hcard .time{ font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--muted); margin-bottom:10px; }
+  .hcard .bar{ width:100%; height:5px; border-radius:4px; background:#1a2040; overflow:hidden; margin-bottom:10px; }
+  .hcard .bar div{ height:100%; border-radius:4px; }
+  .hcard .sc{ font-family:'Cormorant Garamond',serif; font-size:26px; font-weight:600; }
+  .hcard .sc span{ font-size:.5em; color:var(--muted); }
+
+  /* ---- model / footer ---- */
+  section.model{ position:relative; z-index:2; padding:50px 6vw 20px; border-top:1px solid var(--line); background:var(--bg); }
+  section.model p{ color:var(--muted); font-size:13.5px; line-height:1.75; max-width:74ch; margin-bottom:10px; }
+  section.model code{ font-family:'JetBrains Mono',monospace; background:var(--panel); border:1px solid var(--line); padding:2px 6px; border-radius:5px; color:var(--hot); font-size:12px; }
+  footer{ padding:24px 6vw 50px; color:var(--muted); font-size:11.5px; font-family:'JetBrains Mono',monospace; max-width:920px; }
+
+  @media (max-width:640px){
+    .badges{ flex-wrap:wrap; gap:10px; bottom:20px; }
+    .badge{ padding:7px 10px; }
+  }
 </style>
 </head>
 <body>
-<canvas id="stars"></canvas>
 
-<div class="content">
-<header>
-  <div class="eyebrow">skyscore</div>
-  <h1>Tonight's best window<br><i>to look up.</i></h1>
-  <p class="sub">Real sun and moon geometry, live cloud forecast for your sky, combined into one score per hour — so you know exactly when it's worth stepping outside.</p>
-
-  <div class="controls">
-    <label>Latitude <input type="number" id="lat" step="0.01" value="22.72"></label>
-    <label>Longitude <input type="number" id="lon" step="0.01" value="75.86"></label>
-    <button class="ghost" id="locBtn">Use my location</button>
-    <button id="goBtn">Check the sky</button>
-  </div>
+<div class="topbar">
+  <div class="brand"><i>SkyScore</i></div>
+  <select id="citySelect"><option value="">Choose a city…</option></select>
+  <input type="number" id="lat" step="0.01" value="22.72" title="Latitude">
+  <input type="number" id="lon" step="0.01" value="75.86" title="Longitude">
+  <button class="ghost" id="locBtn">Use my location</button>
+  <button id="goBtn">Check the sky</button>
   <div class="status" id="status"></div>
-</header>
+</div>
 
-<div class="container">
-  <div class="hero-score">
-    <div>
-      <div class="window-lbl">best window tonight</div>
-      <div class="big" id="windowRange">–</div>
+<section class="hero-scroll" id="heroScroll">
+  <div class="pinned">
+    <canvas id="stars"></canvas>
+    <canvas id="arc"></canvas>
+    <div class="scroll-hint" id="scrollHint">scroll to travel through tonight ↓</div>
+    <div class="readout">
+      <div class="phase-lbl" id="phaseLbl">now</div>
+      <div class="time-lbl" id="dateLbl" style="opacity:.7;margin-bottom:2px;"></div>
+      <div class="score-big"><span id="scoreBig">–</span><span class="u">/100</span></div>
+      <div class="time-lbl" id="timeLbl">–</div>
+      <div class="caption" id="caption">Scanning the sky…</div>
     </div>
-    <div>
-      <div class="window-lbl">peak score</div>
-      <div class="big" id="peakScore">–<span class="unit">/100</span></div>
-    </div>
-    <div class="moon-card">
-      <canvas id="moonIcon"></canvas>
-      <div class="mtext">
-        <div class="n" id="moonName">–</div>
-        <div class="p" id="moonPct">–</div>
-      </div>
-    </div>
-    <div class="moon-card" id="lightCard">
-      <div class="bortle-badge" id="bortleBadge">–</div>
-      <div class="mtext">
-        <div class="n" id="lightName">–</div>
-        <div class="p" id="lightPct">–</div>
-      </div>
+    <div class="badges">
+      <div class="badge"><canvas id="moonIcon"></canvas><div class="t"><b id="moonName">–</b><span id="moonPct">–</span></div></div>
+      <div class="badge"><div class="dot" id="bortleBadge">–</div><div class="t"><b id="lightName">–</b><span id="lightPct">–</span></div></div>
     </div>
   </div>
+</section>
 
-  <div class="stage"><canvas class="timeline" id="timeline"></canvas></div>
-
-  <div class="facts" id="facts"></div>
+<div class="hgallery-wrap">
+  <div class="hgallery-head">
+    <div class="eyebrow">hour by hour</div>
+    <h2>Scroll sideways to compare</h2>
+    <p>Tap a card to jump the sky view above straight to that hour.</p>
+  </div>
+  <div class="hgallery" id="hgallery"></div>
 </div>
 
-<footer>
-  <code>SkyScore = 100 × darkness × (1 − 0.55 × moon) × (1 − 0.85 × cloud) × (1 − 0.4 × light pollution)</code><br><br>
-  Darkness comes from the sun's real altitude (0 at civil twilight, 1 once the sun is 18° below the horizon). Moon interference uses an approximate lunar position and phase illumination. Cloud cover is a live hourly forecast from Open-Meteo and carries the heaviest weight, since it can block an otherwise perfect sky outright. Light pollution is sampled directly from NASA's VIIRS City Lights satellite composite (via NASA GIBS) at your exact coordinates and converted to an approximate Bortle class — it doesn't change hour to hour, so it acts as a constant ceiling on how dark your sky can ever get. Everything runs in your browser; your coordinates are only sent to the weather and satellite-imagery services needed to answer the question.
-</footer>
+<div class="hgallery-wrap" style="padding-top:10px;">
+  <div class="hgallery-head">
+    <div class="eyebrow">looking ahead</div>
+    <h2>Next 7 nights</h2>
+    <p>Longer-range cloud forecasts get less reliable past 2–3 days — treat later days as an estimate. Tap a night to load it above.</p>
+  </div>
+  <div class="hgallery" id="wgallery"></div>
 </div>
+
+<section class="model">
+  <p><code>SkyScore = 100 × darkness × (1 − 0.55 × moon) × (1 − 0.85 × cloud) × (1 − 0.4 × light pollution)</code></p>
+  <p>Darkness comes from the sun's real altitude. Cloud cover — a live hourly forecast from Open-Meteo — carries the heaviest weight since it can block an otherwise perfect sky outright. Light pollution is sampled from NASA's VIIRS City Lights satellite composite at your exact coordinates and converted to an approximate Bortle class; it's constant across the night, so it acts as a ceiling rather than a swing factor. Moon interference uses an approximate lunar position and phase illumination.</p>
+</section>
+<footer>Everything runs in your browser. Coordinates are only sent to the weather and satellite-imagery services needed to answer the question.</footer>
 
 <script>
-/* ---------- starfield ---------- */
+/* ================= starfield ================= */
 const starsCanvas = document.getElementById('stars');
 const sctx = starsCanvas.getContext('2d');
 let stars = [];
 function resizeStars(){
-  starsCanvas.width = window.innerWidth; starsCanvas.height = window.innerHeight;
-  stars = Array.from({length: Math.floor(window.innerWidth*window.innerHeight/9000)}, ()=>({
-    x: Math.random()*starsCanvas.width, y: Math.random()*starsCanvas.height,
+  const dpr = Math.max(1, window.devicePixelRatio||1);
+  starsCanvas.width = window.innerWidth*dpr; starsCanvas.height = window.innerHeight*dpr;
+  starsCanvas.style.width=window.innerWidth+'px'; starsCanvas.style.height=window.innerHeight+'px';
+  sctx.setTransform(dpr,0,0,dpr,0,0);
+  stars = Array.from({length: Math.floor(window.innerWidth*window.innerHeight/8500)}, ()=>({
+    x: Math.random()*window.innerWidth, y: Math.random()*window.innerHeight,
     r: Math.random()*1.3+0.3, phase: Math.random()*Math.PI*2, speed: 0.5+Math.random()*1.2
   }));
 }
 window.addEventListener('resize', resizeStars);
 resizeStars();
-function drawStars(t){
-  sctx.clearRect(0,0,starsCanvas.width,starsCanvas.height);
-  stars.forEach(s=>{
-    const a = 0.35 + 0.65*Math.abs(Math.sin(t*0.0005*s.speed + s.phase));
-    sctx.beginPath();
-    sctx.arc(s.x,s.y,s.r,0,Math.PI*2);
-    sctx.fillStyle = `rgba(238,240,251,${a})`;
-    sctx.fill();
-  });
-  requestAnimationFrame(drawStars);
-}
-requestAnimationFrame(drawStars);
 
-/* ---------- astronomy ---------- */
+/* ================= astronomy (unchanged core) ================= */
 const RAD = Math.PI/180;
 
 function bodyAltitude(date, lat, lon, haOffsetDeg){
@@ -190,47 +229,38 @@ function moonPhaseInfo(date){
   return {age, illum, haOffset, name};
 }
 
-/* ---------- light pollution (NASA VIIRS City Lights 2012, via GIBS) ---------- */
 function bortleInfo(frac){
-  const b = Math.max(1, Math.min(9, Math.round(1 + frac*8)));
+  const b = Math.max(1, Math.min(9, Math.round(1+frac*8)));
   let label;
   if(b<=2) label='Excellent dark sky';
   else if(b<=4) label='Rural sky';
   else if(b<=6) label='Suburban sky';
   else if(b<=8) label='Bright suburban / urban';
   else label='Inner-city sky';
-  return {b, label};
+  return {b,label};
 }
 
 function estimateLightPollution(lat, lon){
   return new Promise((resolve)=>{
-    const z = 8;
-    const n = Math.pow(2,z);
-    const latRad = lat*RAD;
-    const xF = (lon+180)/360*n;
-    const yF = (1 - Math.log(Math.tan(latRad)+1/Math.cos(latRad))/Math.PI)/2*n;
-    const xt = Math.floor(xF), yt = Math.floor(yF);
+    const z=8, n=Math.pow(2,z), latRad=lat*RAD;
+    const xF=(lon+180)/360*n, yF=(1-Math.log(Math.tan(latRad)+1/Math.cos(latRad))/Math.PI)/2*n;
+    const xt=Math.floor(xF), yt=Math.floor(yF);
     const url = `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_CityLights_2012/default//GoogleMapsCompatible_Level8/${z}/${yt}/${xt}.jpg`;
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    const timeout = setTimeout(()=> resolve({frac:0.3, ok:false}), 6000);
+    const img = new Image(); img.crossOrigin='anonymous';
+    const timeout = setTimeout(()=>resolve({frac:0.3, ok:false}), 6000);
     img.onload = ()=>{
       clearTimeout(timeout);
       try{
-        const c = document.createElement('canvas');
-        c.width = img.width; c.height = img.height;
-        const cctx = c.getContext('2d');
-        cctx.drawImage(img,0,0);
-        const px = Math.min(img.width-1, Math.max(0, Math.floor((xF-xt)*img.width)));
-        const py = Math.min(img.height-1, Math.max(0, Math.floor((yF-yt)*img.height)));
-        const size=6;
-        const rx = Math.max(0,px-size), ry = Math.max(0,py-size);
-        const rw = Math.min(size*2, img.width-rx), rh = Math.min(size*2, img.height-ry);
-        const data = cctx.getImageData(rx,ry,rw,rh).data;
-        let sum=0, count=0;
-        for(let i=0;i<data.length;i+=4){ sum += 0.299*data[i]+0.587*data[i+1]+0.114*data[i+2]; count++; }
-        const avgLum = sum/count;
-        const frac = Math.max(0, Math.min(1, (avgLum-10)/180));
+        const c=document.createElement('canvas'); c.width=img.width; c.height=img.height;
+        const cctx=c.getContext('2d'); cctx.drawImage(img,0,0);
+        const px=Math.min(img.width-1,Math.max(0,Math.floor((xF-xt)*img.width)));
+        const py=Math.min(img.height-1,Math.max(0,Math.floor((yF-yt)*img.height)));
+        const size=6, rx=Math.max(0,px-size), ry=Math.max(0,py-size);
+        const rw=Math.min(size*2,img.width-rx), rh=Math.min(size*2,img.height-ry);
+        const data=cctx.getImageData(rx,ry,rw,rh).data;
+        let sum=0,count=0;
+        for(let i=0;i<data.length;i+=4){ sum+=0.299*data[i]+0.587*data[i+1]+0.114*data[i+2]; count++; }
+        const frac=Math.max(0,Math.min(1,(sum/count-10)/180));
         resolve({frac, ok:true});
       }catch(e){ resolve({frac:0.3, ok:false}); }
     };
@@ -239,220 +269,380 @@ function estimateLightPollution(lat, lon){
   });
 }
 
+/* ================= reasons (varied, but tied to real dominant factor) ================= */
+const REASONS = {
+  cloud: [
+    "Clouds are the main thing standing between you and a clear view.",
+    "Heavy cloud cover is capping the score here — the sky itself would otherwise be quite good.",
+    "It's the clouds, not the moon or local lights, holding this back.",
+    "A thick cloud layer is doing most of the damage to visibility right now."
+  ],
+  moon: [
+    "A bright moon is washing out the fainter stars during this stretch.",
+    "Moonlight is the dominant factor cutting into the score here.",
+    "The moon's glow is the main reason this isn't a top-tier score.",
+    "Strong moonlight nearby is flattening contrast in the sky."
+  ],
+  light: [
+    "Local light pollution puts a ceiling on how dark this sky can ever get.",
+    "Ambient glow from nearby development is the long-term limiter, not tonight's weather.",
+    "Even on a clear night, artificial light nearby keeps this from maxing out.",
+    "Sky glow from your location is baked into every hour's score here."
+  ],
+  excellent: [
+    "Dark sky, clear air, weak moonlight — this is about as good as it gets.",
+    "Every factor lines up well: minimal cloud, faint moon, decent dark-sky rating.",
+    "A genuinely strong window — worth setting an alarm for.",
+    "Conditions are stacking in your favor across the board right now."
+  ],
+  daylight: [
+    "The sun's still above the horizon — nothing to see yet.",
+    "Too early — daylight is washing out everything.",
+    "Give it a few more hours; the sun hasn't set yet."
+  ],
+  dusk: [
+    "Twilight is still fading — give the sky a bit longer to go fully dark.",
+    "The last light of dusk is still lingering.",
+    "Almost there — the sky is still settling into true darkness."
+  ]
+};
+function pickReason(category){
+  const pool = REASONS[category];
+  return pool[Math.floor(Math.random()*pool.length)];
+}
+function reasonCategory(sunAlt, cloud, moonPenalty, lightFrac){
+  if(sunAlt > 0) return 'daylight';
+  if(sunAlt > -18) return 'dusk';
+  const cloudCut = 0.85*cloud, moonCut = 0.55*moonPenalty, lightCut = 0.4*lightFrac;
+  const maxCut = Math.max(cloudCut, moonCut, lightCut);
+  if(maxCut < 0.15) return 'excellent';
+  if(maxCut === cloudCut) return 'cloud';
+  if(maxCut === moonCut) return 'moon';
+  return 'light';
+}
+
+function findBestWindow(points){
+  const threshold = Math.max(30, Math.max(...points.map(p=>p.score))*0.7);
+  let curStart=-1, best={start:0,end:0,len:-1};
+  points.forEach((p,i)=>{
+    if(p.score>=threshold){ if(curStart===-1) curStart=i; }
+    else { if(curStart!==-1){ if(i-curStart>best.len) best={start:curStart,end:i-1,len:i-curStart}; curStart=-1; } }
+  });
+  if(curStart!==-1 && points.length-curStart>best.len) best={start:curStart,end:points.length-1,len:points.length-curStart};
+  return best.len>0 ? best : null;
+}
+
+function computeDayPoints(baseMidnight, lat, lon, cloudSeries, light){
+  const pts = [];
+  for(let h=0; h<24; h++){
+    const time = new Date(baseMidnight.getTime()+h*3600000);
+    const moon = moonPhaseInfo(time);
+    const sunAlt = bodyAltitude(time, lat, lon, 0);
+    const moonAlt = bodyAltitude(time, lat, lon, moon.haOffset);
+    const darkness = sunAlt<0 ? Math.max(0,Math.min(1,(-sunAlt)/18)) : 0;
+    const moonPenalty = moonAlt>0 ? moon.illum*Math.max(0,Math.min(1,moonAlt/90)) : 0;
+    const cloud = nearestCloud(cloudSeries, time);
+    const score = Math.round(100*darkness*(1-0.55*moonPenalty)*(1-0.85*cloud)*(1-0.4*light.frac));
+    const category = reasonCategory(sunAlt, cloud, moonPenalty, light.frac);
+    pts.push({ time, score, sunAlt, moonAlt, moon, reason: pickReason(category) });
+  }
+  return pts;
+}
+
+/* ================= city list ================= */
+const CITIES = [
+  {g:'India', n:'Indore', lat:22.7196, lon:75.8577}, {g:'India', n:'Mumbai', lat:19.0760, lon:72.8777},
+  {g:'India', n:'Delhi', lat:28.7041, lon:77.1025}, {g:'India', n:'Bangalore', lat:12.9716, lon:77.5946},
+  {g:'India', n:'Hyderabad', lat:17.3850, lon:78.4867}, {g:'India', n:'Chennai', lat:13.0827, lon:80.2707},
+  {g:'India', n:'Kolkata', lat:22.5726, lon:88.3639}, {g:'India', n:'Pune', lat:18.5204, lon:73.8567},
+  {g:'India', n:'Jaipur', lat:26.9124, lon:75.7873}, {g:'India', n:'Ahmedabad', lat:23.0225, lon:72.5714},
+  {g:'India', n:'Lucknow', lat:26.8467, lon:80.9462}, {g:'India', n:'Chandigarh', lat:30.7333, lon:76.7794},
+  {g:'India', n:'Bhopal', lat:23.2599, lon:77.4126}, {g:'India', n:'Kochi', lat:9.9312, lon:76.2673},
+  {g:'India', n:'Goa (Panaji)', lat:15.4909, lon:73.8278},
+  {g:'World cities', n:'New York', lat:40.7128, lon:-74.0060}, {g:'World cities', n:'Los Angeles', lat:34.0522, lon:-118.2437},
+  {g:'World cities', n:'London', lat:51.5074, lon:-0.1278}, {g:'World cities', n:'Paris', lat:48.8566, lon:2.3522},
+  {g:'World cities', n:'Berlin', lat:52.5200, lon:13.4050}, {g:'World cities', n:'Tokyo', lat:35.6762, lon:139.6503},
+  {g:'World cities', n:'Sydney', lat:-33.8688, lon:151.2093}, {g:'World cities', n:'Dubai', lat:25.2048, lon:55.2708},
+  {g:'World cities', n:'Singapore', lat:1.3521, lon:103.8198}, {g:'World cities', n:'Beijing', lat:39.9042, lon:116.4074},
+  {g:'World cities', n:'Moscow', lat:55.7558, lon:37.6173}, {g:'World cities', n:'Cape Town', lat:-33.9249, lon:18.4241},
+  {g:'World cities', n:'Cairo', lat:30.0444, lon:31.2357}, {g:'World cities', n:'Rio de Janeiro', lat:-22.9068, lon:-43.1729},
+  {g:'World cities', n:'Toronto', lat:43.6532, lon:-79.3832},
+  {g:'Dark-sky spots', n:'Atacama Desert, Chile', lat:-22.9087, lon:-68.1997}, {g:'Dark-sky spots', n:'Mauna Kea, Hawaii', lat:19.8207, lon:-155.4681},
+  {g:'Dark-sky spots', n:'Death Valley, USA', lat:36.5054, lon:-117.0794}, {g:'Dark-sky spots', n:'Reykjavik, Iceland', lat:64.1466, lon:-21.9426},
+  {g:'Dark-sky spots', n:'Queenstown, New Zealand', lat:-45.0312, lon:168.6626}
+];
+function populateCities(){
+  const sel = document.getElementById('citySelect');
+  const groups = {};
+  CITIES.forEach(c=>{ (groups[c.g] = groups[c.g]||[]).push(c); });
+  Object.keys(groups).forEach(g=>{
+    const og = document.createElement('optgroup'); og.label = g;
+    groups[g].forEach(c=>{
+      const opt = document.createElement('option');
+      opt.value = `${c.lat},${c.lon}`; opt.textContent = c.n;
+      og.appendChild(opt);
+    });
+    sel.appendChild(og);
+  });
+}
+populateCities();
+document.getElementById('citySelect').addEventListener('change', (e)=>{
+  if(!e.target.value) return;
+  const [lat,lon] = e.target.value.split(',');
+  document.getElementById('lat').value = parseFloat(lat).toFixed(3);
+  document.getElementById('lon').value = parseFloat(lon).toFixed(3);
+  run();
+});
+
 async function fetchCloud(lat, lon){
   try{
-    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=cloudcover&forecast_days=2&timezone=auto`);
-    if(!res.ok) throw new Error('weather unavailable');
+    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=cloudcover&forecast_days=8&timezone=auto`);
+    if(!res.ok) throw 0;
     const data = await res.json();
     return data.hourly.time.map((t,i)=>({ time:new Date(t), cloud:data.hourly.cloudcover[i]/100 }));
   }catch(e){ return null; }
 }
-
-function nearestCloud(cloudSeries, date){
-  if(!cloudSeries) return 0;
-  let best = cloudSeries[0], bestDiff = Infinity;
-  for(const c of cloudSeries){
-    const d = Math.abs(c.time-date);
-    if(d<bestDiff){ bestDiff=d; best=c; }
-  }
+function nearestCloud(series, date){
+  if(!series) return 0;
+  let best=series[0], bd=Infinity;
+  for(const c of series){ const d=Math.abs(c.time-date); if(d<bd){bd=d;best=c;} }
   return best.cloud;
 }
-
-function fmtTime(d){ return d.toLocaleTimeString(undefined,{hour:'numeric', minute:'2-digit'}); }
-
-/* ---------- moon icon ---------- */
-function drawMoonIcon(illum, waxing){
-  const c = document.getElementById('moonIcon');
-  const dpr = Math.max(1, window.devicePixelRatio||1);
-  const size = 54;
-  c.width = size*dpr; c.height=size*dpr; c.style.width=size+'px'; c.style.height=size+'px';
-  const ctx = c.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
-  ctx.clearRect(0,0,size,size);
-  const cx=size/2, cy=size/2, r=size/2-3;
-  ctx.save();
-  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fillStyle='#20264a'; ctx.fill();
-  ctx.save(); ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.clip();
-  const litFrac = illum;
-  const offset = (1-litFrac*2) * r;
-  ctx.beginPath();
-  ctx.ellipse(cx + (waxing? -offset: offset), cy, Math.abs(r), r, 0, 0, Math.PI*2);
-  ctx.fillStyle = '#eef0fb';
-  ctx.shadowColor='rgba(238,240,251,0.5)'; ctx.shadowBlur=10;
-  ctx.fill();
-  ctx.restore();
-  ctx.restore();
-}
-
-/* ---------- timeline render ---------- */
-const tlCanvas = document.getElementById('timeline');
-const tctx = tlCanvas.getContext('2d');
-let dpr2 = Math.max(1, window.devicePixelRatio||1);
-let TW,TH;
-function resizeTimeline(){
-  const r = tlCanvas.getBoundingClientRect();
-  TW=r.width; TH=r.height;
-  tlCanvas.width=TW*dpr2; tlCanvas.height=TH*dpr2;
-  tlCanvas.style.width=TW+'px'; tlCanvas.style.height=TH+'px';
-  tctx.setTransform(dpr2,0,0,dpr2,0,0);
-}
-window.addEventListener('resize', ()=>{ resizeTimeline(); if(lastPoints) renderTimeline(lastPoints,lastWindow); });
-resizeTimeline();
-
+function fmtTime(d){ return d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }
 function scoreColor(s){
   const dim=[58,63,102], mid=[111,140,255], hot=[255,209,102];
   let a,b,t;
-  if(s<50){ a=dim;b=mid;t=s/50; } else { a=mid;b=hot;t=(s-50)/50; }
+  if(s<50){a=dim;b=mid;t=s/50;} else {a=mid;b=hot;t=(s-50)/50;}
   const c=a.map((v,i)=>Math.round(v+(b[i]-v)*t));
   return `rgb(${c[0]},${c[1]},${c[2]})`;
 }
-
-let lastPoints=null, lastWindow=null, tAnim=0, raf2=null;
-function renderTimeline(points, win){
-  tctx.clearRect(0,0,TW,TH);
-  const padX=24, padTop=20, padBot=34;
-  const n=points.length;
-  const stepX=(TW-padX*2)/(n-1);
-  const pts = points.map((p,i)=>({
-    x: padX+i*stepX,
-    y: TH-padBot-(p.score/100)*(TH-padTop-padBot),
-    s:p.score, t:p.time
-  }));
-
-  // best window highlight band
-  if(win){
-    const x1 = padX + win.startIdx*stepX, x2 = padX + win.endIdx*stepX;
-    tctx.save();
-    tctx.fillStyle='rgba(255,209,102,0.08)';
-    tctx.fillRect(x1, padTop, x2-x1, TH-padTop-padBot);
-    tctx.restore();
-  }
-
-  // area fill
-  tctx.save();
-  const grad = tctx.createLinearGradient(0,0,0,TH);
-  grad.addColorStop(0,'rgba(255,209,102,0.16)');
-  grad.addColorStop(0.6,'rgba(111,140,255,0.10)');
-  grad.addColorStop(1,'rgba(58,63,102,0.04)');
-  tctx.beginPath(); tctx.moveTo(pts[0].x, TH-padBot);
-  pts.forEach((p,i)=>{ if(i===0) tctx.lineTo(p.x,p.y); else { const pr=pts[i-1]; tctx.quadraticCurveTo(pr.x,pr.y,(pr.x+p.x)/2,(pr.y+p.y)/2); } });
-  tctx.lineTo(pts[pts.length-1].x,pts[pts.length-1].y);
-  tctx.lineTo(pts[pts.length-1].x, TH-padBot);
-  tctx.closePath(); tctx.fillStyle=grad; tctx.fill();
-  tctx.restore();
-
-  // glow line
-  tctx.save();
-  tctx.beginPath();
-  pts.forEach((p,i)=>{ if(i===0) tctx.moveTo(p.x,p.y); else { const pr=pts[i-1]; tctx.quadraticCurveTo(pr.x,pr.y,(pr.x+p.x)/2,(pr.y+p.y)/2); } });
-  tctx.lineTo(pts[pts.length-1].x,pts[pts.length-1].y);
-  tctx.strokeStyle='rgba(255,209,102,0.7)'; tctx.lineWidth=2;
-  tctx.shadowColor='rgba(255,209,102,0.4)'; tctx.shadowBlur=10;
-  tctx.stroke();
-  tctx.restore();
-
-  // dots
-  pts.forEach((p,i)=>{
-    if(i%3!==0) return;
-    const c = scoreColor(p.s);
-    const pulse = 1+Math.sin(tAnim*0.003+i)*0.06;
-    tctx.save();
-    tctx.beginPath(); tctx.arc(p.x,p.y,3*pulse,0,Math.PI*2);
-    tctx.fillStyle=c; tctx.shadowColor=c; tctx.shadowBlur=8; tctx.fill();
-    tctx.restore();
-  });
-
-  // time axis labels every ~3h
-  tctx.save();
-  tctx.font='11px "JetBrains Mono", monospace';
-  tctx.fillStyle='#7a80a3';
-  for(let i=0;i<n;i+=Math.round(n/7)){
-    tctx.fillText(fmtTime(points[i].time), pts[i].x-14, TH-10);
-  }
-  tctx.restore();
-
-  tAnim+=16;
-  raf2 = requestAnimationFrame(()=>renderTimeline(points,win));
+function drawMoonIcon(illum, waxing){
+  const c = document.getElementById('moonIcon');
+  const dpr = Math.max(1, window.devicePixelRatio||1); const size=30;
+  c.width=size*dpr; c.height=size*dpr; c.style.width=size+'px'; c.style.height=size+'px';
+  const ctx=c.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,size,size);
+  const cx=size/2,cy=size/2,r=size/2-2;
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fillStyle='#20264a'; ctx.fill();
+  ctx.save(); ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.clip();
+  const offset=(1-illum*2)*r;
+  ctx.beginPath(); ctx.ellipse(cx+(waxing?-offset:offset),cy,Math.abs(r),r,0,0,Math.PI*2);
+  ctx.fillStyle='#eef0fb'; ctx.shadowColor='rgba(238,240,251,0.5)'; ctx.shadowBlur=8; ctx.fill();
+  ctx.restore();
 }
 
-/* ---------- orchestration ---------- */
+/* ================= arc / timeline canvas ================= */
+const arcCanvas = document.getElementById('arc');
+const actx = arcCanvas.getContext('2d');
+let dpr2 = Math.max(1, window.devicePixelRatio||1);
+let AW,AH;
+function resizeArc(){
+  AW = window.innerWidth; AH = window.innerHeight;
+  arcCanvas.width = AW*dpr2; arcCanvas.height = AH*dpr2;
+  arcCanvas.style.width=AW+'px'; arcCanvas.style.height=AH+'px';
+  actx.setTransform(dpr2,0,0,dpr2,0,0);
+}
+window.addEventListener('resize', resizeArc);
+resizeArc();
+
+let state = { points:null, best:null, currentIdx:0, tAnim:0 };
+
+function frame(t){
+  sctx.clearRect(0,0,window.innerWidth,window.innerHeight);
+  stars.forEach(s=>{
+    const a = 0.3 + 0.7*Math.abs(Math.sin(t*0.0005*s.speed + s.phase));
+    sctx.beginPath(); sctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+    sctx.fillStyle = `rgba(238,240,251,${a})`; sctx.fill();
+  });
+
+  actx.clearRect(0,0,AW,AH);
+  if(state.points){
+    const points = state.points;
+    const padX = AW*0.08, bandTop = AH*0.68, bandH = AH*0.16;
+    const n = points.length, stepX = (AW-padX*2)/(n-1);
+    const pts = points.map((p,i)=>({ x:padX+i*stepX, y:bandTop+bandH-(p.score/100)*bandH, s:p.score }));
+
+    if(state.best){
+      const x1=padX+state.best.start*stepX, x2=padX+state.best.end*stepX;
+      actx.fillStyle='rgba(255,209,102,0.06)';
+      actx.fillRect(x1, bandTop-10, x2-x1, bandH+20);
+    }
+
+    actx.save();
+    actx.beginPath(); actx.moveTo(pts[0].x, bandTop+bandH);
+    pts.forEach((p,i)=>{ if(i===0) actx.lineTo(p.x,p.y); else { const pr=pts[i-1]; actx.quadraticCurveTo(pr.x,pr.y,(pr.x+p.x)/2,(pr.y+p.y)/2); } });
+    actx.lineTo(pts[pts.length-1].x, pts[pts.length-1].y);
+    actx.lineTo(pts[pts.length-1].x, bandTop+bandH);
+    actx.closePath();
+    const grad = actx.createLinearGradient(0,bandTop,0,bandTop+bandH);
+    grad.addColorStop(0,'rgba(255,209,102,0.14)'); grad.addColorStop(1,'rgba(58,63,102,0.02)');
+    actx.fillStyle = grad; actx.fill();
+    actx.restore();
+
+    actx.save();
+    actx.beginPath();
+    pts.forEach((p,i)=>{ if(i===0) actx.moveTo(p.x,p.y); else { const pr=pts[i-1]; actx.quadraticCurveTo(pr.x,pr.y,(pr.x+p.x)/2,(pr.y+p.y)/2); } });
+    actx.lineTo(pts[pts.length-1].x, pts[pts.length-1].y);
+    actx.strokeStyle='rgba(255,209,102,0.55)'; actx.lineWidth=1.8;
+    actx.shadowColor='rgba(255,209,102,0.3)'; actx.shadowBlur=8;
+    actx.stroke();
+    actx.restore();
+
+    // playhead
+    const idx = state.currentIdx;
+    const px = pts[idx].x, py = pts[idx].y;
+    actx.save();
+    actx.strokeStyle='rgba(238,240,251,0.15)'; actx.lineWidth=1;
+    actx.beginPath(); actx.moveTo(px,bandTop-14); actx.lineTo(px,bandTop+bandH+14); actx.stroke();
+    const pulse = 1+Math.sin(t*0.004)*0.15;
+    actx.beginPath(); actx.arc(px,py,6*pulse,0,Math.PI*2);
+    const c = scoreColor(pts[idx].s);
+    actx.fillStyle=c; actx.shadowColor=c; actx.shadowBlur=18; actx.fill();
+    actx.restore();
+  }
+
+  state.tAnim = t;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ================= scroll scrubbing ================= */
+const heroScroll = document.getElementById('heroScroll');
+const scrollHint = document.getElementById('scrollHint');
+let ticking = false;
+
+function captionFor(p, isBest){
+  if(isBest) return "This is your best window — go outside now.";
+  return p.reason;
+}
+
+function updateProgress(){
+  ticking = false;
+  if(!state.points) return;
+  const rect = heroScroll.getBoundingClientRect();
+  const total = heroScroll.offsetHeight - window.innerHeight;
+  const scrolled = Math.min(total, Math.max(0, -rect.top));
+  const progress = total>0 ? scrolled/total : 0;
+  const idx = Math.round(progress*(state.points.length-1));
+  state.currentIdx = idx;
+  document.documentElement.style.setProperty('--shift', progress);
+  scrollHint.style.opacity = progress > 0.03 ? 0 : 1;
+
+  const p = state.points[idx];
+  const isBest = state.best && idx>=state.best.start && idx<=state.best.end;
+  document.getElementById('scoreBig').textContent = p.score;
+  document.getElementById('timeLbl').textContent = fmtTime(p.time);
+  document.getElementById('dateLbl').textContent = p.time.toLocaleDateString(undefined,{weekday:'long', month:'short', day:'numeric'});
+  document.getElementById('phaseLbl').textContent = isBest ? 'best window' : (p.sunAlt>0 ? 'daylight' : 'tonight');
+  document.getElementById('caption').textContent = captionFor(p, isBest);
+
+  document.querySelectorAll('.hcard').forEach(el=>{
+    el.style.outline = (+el.dataset.idx===idx) ? '2px solid var(--hot)' : 'none';
+  });
+}
+window.addEventListener('scroll', ()=>{
+  if(!ticking){ requestAnimationFrame(updateProgress); ticking = true; }
+});
+
+/* ================= hourly horizontal gallery ================= */
+function buildGallery(points, best){
+  const wrap = document.getElementById('hgallery');
+  wrap.innerHTML = '';
+  points.forEach((p,i)=>{
+    const isBest = best && i>=best.start && i<=best.end;
+    const card = document.createElement('div');
+    card.className = 'hcard' + (isBest?' best':'');
+    card.dataset.idx = i;
+    card.innerHTML = `
+      <div class="time">${fmtTime(p.time)}</div>
+      <div class="bar"><div style="width:${p.score}%; background:${scoreColor(p.score)};"></div></div>
+      <div class="sc">${p.score}<span>/100</span></div>
+    `;
+    card.addEventListener('click', ()=>{
+      const total = heroScroll.offsetHeight - window.innerHeight;
+      const target = heroScroll.offsetTop + (i/(points.length-1))*total;
+      window.scrollTo({ top: target, behavior:'smooth' });
+    });
+    wrap.appendChild(card);
+  });
+}
+
+function setActiveDay(dayIndex, weekly){
+  const day = weekly[dayIndex];
+  state.points = day.points;
+  state.best = day.best;
+  state.currentIdx = 0;
+  buildGallery(day.points, day.best);
+  document.querySelectorAll('.wcard').forEach((el,i)=>{ el.style.borderColor = i===dayIndex ? 'var(--hot)' : 'var(--line)'; });
+  window.scrollTo({ top: heroScroll.offsetTop, behavior:'smooth' });
+  updateProgress();
+}
+
+function buildWeekly(weekly){
+  const wrap = document.getElementById('wgallery');
+  wrap.innerHTML = '';
+  weekly.forEach((day, i)=>{
+    const el = document.createElement('div');
+    el.className = 'hcard wcard';
+    el.style.flexBasis = '190px';
+    const label = i===0 ? 'Tonight' : i===1 ? 'Tomorrow' : day.points[0].time.toLocaleDateString(undefined,{weekday:'short'});
+    const dateStr = day.points[0].time.toLocaleDateString(undefined,{month:'short', day:'numeric'});
+    el.innerHTML = `
+      <div class="time">${label} · ${dateStr}</div>
+      <div class="bar"><div style="width:${day.peak}%; background:${scoreColor(day.peak)};"></div></div>
+      <div class="sc">${day.peak}<span>/100 peak</span></div>
+      <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); margin-top:8px;">${day.windowLabel}</div>
+      <div style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--muted); margin-top:4px;">${day.moonName}</div>
+    `;
+    el.addEventListener('click', ()=> setActiveDay(i, weekly));
+    wrap.appendChild(el);
+  });
+}
+
+/* ================= orchestration ================= */
 async function run(){
-  if(raf2) cancelAnimationFrame(raf2);
   const lat = parseFloat(document.getElementById('lat').value);
   const lon = parseFloat(document.getElementById('lon').value);
   const statusEl = document.getElementById('status');
-  statusEl.textContent = 'fetching cloud forecast…';
+  statusEl.textContent = 'reading the sky…';
 
-  const now = new Date();
-  const [cloudSeries, light] = await Promise.all([ fetchCloud(lat, lon), estimateLightPollution(lat, lon) ]);
+  const [cloudSeries, light] = await Promise.all([ fetchCloud(lat,lon), estimateLightPollution(lat,lon) ]);
   const notes = [];
   if(!cloudSeries) notes.push('cloud forecast unavailable, defaulting to clear');
-  if(!light.ok) notes.push('satellite light data unavailable, using a mid-range estimate');
-  statusEl.textContent = notes.length ? notes.join(' · ') + ' — score still shown below.' : '';
+  if(!light.ok) notes.push('satellite light data unavailable, using an estimate');
+  statusEl.textContent = notes.join(' · ');
 
   const bortle = bortleInfo(light.frac);
   document.getElementById('bortleBadge').textContent = bortle.b;
   document.getElementById('lightName').textContent = bortle.label;
-  document.getElementById('lightPct').textContent = (light.ok ? 'Bortle ' + bortle.b : 'Bortle ' + bortle.b + ' (est.)');
+  document.getElementById('lightPct').textContent = 'Bortle ' + bortle.b + (light.ok?'':' (est.)');
 
-  const moon = moonPhaseInfo(now);
-  const waxing = moon.age < 14.77;
-
-  const points = [];
-  for(let i=0;i<=80;i++){
-    const time = new Date(now.getTime() + i*15*60000);
-    const sunAlt = bodyAltitude(time, lat, lon, 0);
-    const moonAlt = bodyAltitude(time, lat, lon, moon.haOffset);
-    const darkness = sunAlt<0 ? Math.max(0,Math.min(1,(-sunAlt)/18)) : 0;
-    const moonPenalty = moonAlt>0 ? moon.illum * Math.max(0,Math.min(1,moonAlt/90)) : 0;
-    const cloud = nearestCloud(cloudSeries, time);
-    const score = Math.round(100 * darkness * (1-0.55*moonPenalty) * (1-0.85*cloud) * (1-0.4*light.frac));
-    points.push({ time, score, sunAlt, moonAlt });
+  const todayMidnight = new Date(); todayMidnight.setHours(0,0,0,0);
+  const weekly = [];
+  for(let d=0; d<7; d++){
+    const base = new Date(todayMidnight.getTime() + d*86400000);
+    const points = computeDayPoints(base, lat, lon, cloudSeries, light);
+    const best = findBestWindow(points);
+    const peak = Math.max(...points.map(p=>p.score));
+    const windowLabel = best ? `${fmtTime(points[best.start].time)}–${fmtTime(points[best.end].time)}` : 'no strong window';
+    const moonMid = moonPhaseInfo(new Date(base.getTime()+12*3600000));
+    weekly.push({ points, best, peak, windowLabel, moonName: moonMid.name });
   }
 
-  // best contiguous window
-  const threshold = Math.max(30, Math.max(...points.map(p=>p.score)) * 0.7);
-  let bestStart=-1, bestEnd=-1, curStart=-1, best={start:0,end:0,len:-1};
-  points.forEach((p,i)=>{
-    if(p.score>=threshold){
-      if(curStart===-1) curStart=i;
-    } else {
-      if(curStart!==-1){
-        if(i-curStart>best.len){ best={start:curStart,end:i-1,len:i-curStart}; }
-        curStart=-1;
-      }
-    }
-  });
-  if(curStart!==-1 && points.length-curStart>best.len){ best={start:curStart,end:points.length-1,len:points.length-curStart}; }
+  const moon0 = moonPhaseInfo(new Date());
+  const waxing = moon0.age < 14.77;
+  drawMoonIcon(moon0.illum, waxing);
+  document.getElementById('moonName').textContent = moon0.name;
+  document.getElementById('moonPct').textContent = Math.round(moon0.illum*100)+'% lit';
 
-  const peak = points.reduce((a,p)=>p.score>a.score?p:a, points[0]);
-
-  document.getElementById('windowRange').textContent = best.len>0
-    ? `${fmtTime(points[best.start].time)} – ${fmtTime(points[best.end].time)}`
-    : 'no strong window';
-  document.getElementById('peakScore').innerHTML = `${peak.score}<span class="unit">/100</span>`;
-  document.getElementById('moonName').textContent = moon.name;
-  document.getElementById('moonPct').textContent = Math.round(moon.illum*100)+'% illuminated';
-  drawMoonIcon(moon.illum, waxing);
-
-  const sunsetIdx = points.findIndex(p=>p.sunAlt<0);
-  const sunriseIdx = points.slice(sunsetIdx+1).findIndex(p=>p.sunAlt>=0);
-  const factsEl = document.getElementById('facts');
-  factsEl.innerHTML = `
-    <div>sunset <b>${sunsetIdx>=0?fmtTime(points[sunsetIdx].time):'—'}</b></div>
-    <div>next sunrise <b>${sunriseIdx>=0?fmtTime(points[sunsetIdx+1+sunriseIdx].time):'—'}</b></div>
-    <div>moon phase age <b>${moon.age.toFixed(1)}d</b></div>
-    <div>location <b>${lat.toFixed(2)}, ${lon.toFixed(2)}</b></div>
-  `;
-
-  lastPoints = points;
-  lastWindow = best.len>0 ? {startIdx:best.start, endIdx:best.end} : null;
-  resizeTimeline();
-  renderTimeline(points, lastWindow);
+  heroScroll.style.height = (window.innerHeight*3.4) + 'px';
+  buildWeekly(weekly);
+  setActiveDay(0, weekly);
 }
 
 document.getElementById('goBtn').addEventListener('click', run);
 document.getElementById('locBtn').addEventListener('click', ()=>{
-  if(!navigator.geolocation){ return; }
+  if(!navigator.geolocation) return;
   document.getElementById('status').textContent='locating…';
   navigator.geolocation.getCurrentPosition(pos=>{
     document.getElementById('lat').value = pos.coords.latitude.toFixed(3);
