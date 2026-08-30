@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SkyScore — scroll through tonight's sky</title>
+<title>SkyScore | your night sky forecast</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -115,14 +115,16 @@
     .badge{ padding:7px 10px; }
   }
 </style>
+<script data-goatcounter="https://skyscore.goatcounter.com/count"
+        async src="//gc.zgo.at/count.js"></script>
 </head>
 <body>
 
 <div class="topbar">
   <div class="brand"><i>SkyScore</i></div>
   <select id="citySelect"><option value="">Choose a city…</option></select>
-  <input type="number" id="lat" step="0.01" value="22.72" title="Latitude">
-  <input type="number" id="lon" step="0.01" value="75.86" title="Longitude">
+  <input type="number" id="lat" step="0.01" placeholder="lat" title="Latitude">
+  <input type="number" id="lon" step="0.01" placeholder="lon" title="Longitude">
   <button class="ghost" id="locBtn">Use my location</button>
   <button id="goBtn">Check the sky</button>
   <div class="status" id="status"></div>
@@ -132,13 +134,13 @@
   <div class="pinned">
     <canvas id="stars"></canvas>
     <canvas id="arc"></canvas>
-    <div class="scroll-hint" id="scrollHint">scroll to travel through tonight ↓</div>
+    <div class="scroll-hint" id="scrollHint" style="opacity:0;">scroll to travel through the night ↓</div>
     <div class="readout">
-      <div class="phase-lbl" id="phaseLbl">now</div>
+      <div class="phase-lbl" id="phaseLbl"></div>
       <div class="time-lbl" id="dateLbl" style="opacity:.7;margin-bottom:2px;"></div>
       <div class="score-big"><span id="scoreBig">–</span><span class="u">/100</span></div>
-      <div class="time-lbl" id="timeLbl">–</div>
-      <div class="caption" id="caption">Scanning the sky…</div>
+      <div class="time-lbl" id="timeLbl"></div>
+      <div class="caption" id="caption">Pick a city, use your location, or enter coordinates to see tonight's sky.</div>
     </div>
     <div class="badges">
       <div class="badge"><canvas id="moonIcon"></canvas><div class="t"><b id="moonName">–</b><span id="moonPct">–</span></div></div>
@@ -149,25 +151,16 @@
 
 <div class="hgallery-wrap">
   <div class="hgallery-head">
-    <div class="eyebrow">hour by hour</div>
-    <h2>Scroll sideways to compare</h2>
-    <p>Tap a card to jump the sky view above straight to that hour.</p>
-  </div>
-  <div class="hgallery" id="hgallery"></div>
-</div>
-
-<div class="hgallery-wrap" style="padding-top:10px;">
-  <div class="hgallery-head">
     <div class="eyebrow">looking ahead</div>
     <h2>Next 7 nights</h2>
-    <p>Longer-range cloud forecasts get less reliable past 2–3 days — treat later days as an estimate. Tap a night to load it above.</p>
+    <p>Longer-range cloud forecasts get less reliable past 2 to 3 days, so treat later nights as an estimate. Tap a night to load it above.</p>
   </div>
   <div class="hgallery" id="wgallery"></div>
 </div>
 
 <section class="model">
   <p><code>SkyScore = 100 × darkness × (1 − 0.55 × moon) × (1 − 0.85 × cloud) × (1 − 0.4 × light pollution)</code></p>
-  <p>Darkness comes from the sun's real altitude. Cloud cover — a live hourly forecast from Open-Meteo — carries the heaviest weight since it can block an otherwise perfect sky outright. Light pollution is sampled from NASA's VIIRS City Lights satellite composite at your exact coordinates and converted to an approximate Bortle class; it's constant across the night, so it acts as a ceiling rather than a swing factor. Moon interference uses an approximate lunar position and phase illumination.</p>
+  <p>Darkness comes from the sun's real altitude. Cloud cover, a live hourly forecast from Open-Meteo, carries the heaviest weight since it can block an otherwise perfect sky outright. Light pollution uses a known Bortle class for the cities in the dropdown, since a single stale satellite pixel at city scale can be misleading; for any other coordinates it falls back to sampling NASA's VIIRS City Lights composite, labeled as an estimate since that data is coarse and from 2012. It's constant across the night either way, so it acts as a ceiling rather than a swing factor. Moon interference uses an approximate lunar position and phase illumination.</p>
 </section>
 <footer>Everything runs in your browser. Coordinates are only sent to the weather and satellite-imagery services needed to answer the question.</footer>
 
@@ -273,7 +266,7 @@ function estimateLightPollution(lat, lon){
 const REASONS = {
   cloud: [
     "Clouds are the main thing standing between you and a clear view.",
-    "Heavy cloud cover is capping the score here — the sky itself would otherwise be quite good.",
+    "Heavy cloud cover is capping the score here. The sky itself would otherwise be quite good.",
     "It's the clouds, not the moon or local lights, holding this back.",
     "A thick cloud layer is doing most of the damage to visibility right now."
   ],
@@ -290,20 +283,20 @@ const REASONS = {
     "Sky glow from your location is baked into every hour's score here."
   ],
   excellent: [
-    "Dark sky, clear air, weak moonlight — this is about as good as it gets.",
+    "Dark sky, clear air, weak moonlight. About as good as it gets.",
     "Every factor lines up well: minimal cloud, faint moon, decent dark-sky rating.",
-    "A genuinely strong window — worth setting an alarm for.",
-    "Conditions are stacking in your favor across the board right now."
+    "A genuinely strong window. Worth setting an alarm for.",
+    "Hard to ask for much more than this right now."
   ],
   daylight: [
-    "The sun's still above the horizon — nothing to see yet.",
-    "Too early — daylight is washing out everything.",
+    "The sun's still above the horizon, nothing to see yet.",
+    "Too early. Daylight is washing out everything.",
     "Give it a few more hours; the sun hasn't set yet."
   ],
   dusk: [
-    "Twilight is still fading — give the sky a bit longer to go fully dark.",
+    "Twilight is still fading. Give the sky a bit longer to go fully dark.",
     "The last light of dusk is still lingering.",
-    "Almost there — the sky is still settling into true darkness."
+    "Almost there. The sky is still settling into true darkness."
   ]
 };
 function pickReason(category){
@@ -351,26 +344,28 @@ function computeDayPoints(baseMidnight, lat, lon, cloudSeries, light){
 
 /* ================= city list ================= */
 const CITIES = [
-  {g:'India', n:'Indore', lat:22.7196, lon:75.8577}, {g:'India', n:'Mumbai', lat:19.0760, lon:72.8777},
-  {g:'India', n:'Delhi', lat:28.7041, lon:77.1025}, {g:'India', n:'Bangalore', lat:12.9716, lon:77.5946},
-  {g:'India', n:'Hyderabad', lat:17.3850, lon:78.4867}, {g:'India', n:'Chennai', lat:13.0827, lon:80.2707},
-  {g:'India', n:'Kolkata', lat:22.5726, lon:88.3639}, {g:'India', n:'Pune', lat:18.5204, lon:73.8567},
-  {g:'India', n:'Jaipur', lat:26.9124, lon:75.7873}, {g:'India', n:'Ahmedabad', lat:23.0225, lon:72.5714},
-  {g:'India', n:'Lucknow', lat:26.8467, lon:80.9462}, {g:'India', n:'Chandigarh', lat:30.7333, lon:76.7794},
-  {g:'India', n:'Bhopal', lat:23.2599, lon:77.4126}, {g:'India', n:'Kochi', lat:9.9312, lon:76.2673},
-  {g:'India', n:'Goa (Panaji)', lat:15.4909, lon:73.8278},
-  {g:'World cities', n:'New York', lat:40.7128, lon:-74.0060}, {g:'World cities', n:'Los Angeles', lat:34.0522, lon:-118.2437},
-  {g:'World cities', n:'London', lat:51.5074, lon:-0.1278}, {g:'World cities', n:'Paris', lat:48.8566, lon:2.3522},
-  {g:'World cities', n:'Berlin', lat:52.5200, lon:13.4050}, {g:'World cities', n:'Tokyo', lat:35.6762, lon:139.6503},
-  {g:'World cities', n:'Sydney', lat:-33.8688, lon:151.2093}, {g:'World cities', n:'Dubai', lat:25.2048, lon:55.2708},
-  {g:'World cities', n:'Singapore', lat:1.3521, lon:103.8198}, {g:'World cities', n:'Beijing', lat:39.9042, lon:116.4074},
-  {g:'World cities', n:'Moscow', lat:55.7558, lon:37.6173}, {g:'World cities', n:'Cape Town', lat:-33.9249, lon:18.4241},
-  {g:'World cities', n:'Cairo', lat:30.0444, lon:31.2357}, {g:'World cities', n:'Rio de Janeiro', lat:-22.9068, lon:-43.1729},
-  {g:'World cities', n:'Toronto', lat:43.6532, lon:-79.3832},
-  {g:'Dark-sky spots', n:'Atacama Desert, Chile', lat:-22.9087, lon:-68.1997}, {g:'Dark-sky spots', n:'Mauna Kea, Hawaii', lat:19.8207, lon:-155.4681},
-  {g:'Dark-sky spots', n:'Death Valley, USA', lat:36.5054, lon:-117.0794}, {g:'Dark-sky spots', n:'Reykjavik, Iceland', lat:64.1466, lon:-21.9426},
-  {g:'Dark-sky spots', n:'Queenstown, New Zealand', lat:-45.0312, lon:168.6626}
+  {g:'India', n:'Indore', lat:22.7196, lon:75.8577, b:7}, {g:'India', n:'Mumbai', lat:19.0760, lon:72.8777, b:9},
+  {g:'India', n:'Delhi', lat:28.7041, lon:77.1025, b:9}, {g:'India', n:'Bangalore', lat:12.9716, lon:77.5946, b:8},
+  {g:'India', n:'Hyderabad', lat:17.3850, lon:78.4867, b:8}, {g:'India', n:'Chennai', lat:13.0827, lon:80.2707, b:8},
+  {g:'India', n:'Kolkata', lat:22.5726, lon:88.3639, b:9}, {g:'India', n:'Pune', lat:18.5204, lon:73.8567, b:7},
+  {g:'India', n:'Jaipur', lat:26.9124, lon:75.7873, b:7}, {g:'India', n:'Ahmedabad', lat:23.0225, lon:72.5714, b:8},
+  {g:'India', n:'Lucknow', lat:26.8467, lon:80.9462, b:7}, {g:'India', n:'Chandigarh', lat:30.7333, lon:76.7794, b:6},
+  {g:'India', n:'Bhopal', lat:23.2599, lon:77.4126, b:6}, {g:'India', n:'Kochi', lat:9.9312, lon:76.2673, b:7},
+  {g:'India', n:'Goa (Panaji)', lat:15.4909, lon:73.8278, b:5},
+  {g:'World cities', n:'New York', lat:40.7128, lon:-74.0060, b:9}, {g:'World cities', n:'Los Angeles', lat:34.0522, lon:-118.2437, b:9},
+  {g:'World cities', n:'London', lat:51.5074, lon:-0.1278, b:9}, {g:'World cities', n:'Paris', lat:48.8566, lon:2.3522, b:9},
+  {g:'World cities', n:'Berlin', lat:52.5200, lon:13.4050, b:8}, {g:'World cities', n:'Tokyo', lat:35.6762, lon:139.6503, b:9},
+  {g:'World cities', n:'Sydney', lat:-33.8688, lon:151.2093, b:8}, {g:'World cities', n:'Dubai', lat:25.2048, lon:55.2708, b:9},
+  {g:'World cities', n:'Singapore', lat:1.3521, lon:103.8198, b:9}, {g:'World cities', n:'Beijing', lat:39.9042, lon:116.4074, b:9},
+  {g:'World cities', n:'Moscow', lat:55.7558, lon:37.6173, b:9}, {g:'World cities', n:'Cape Town', lat:-33.9249, lon:18.4241, b:7},
+  {g:'World cities', n:'Cairo', lat:30.0444, lon:31.2357, b:9}, {g:'World cities', n:'Rio de Janeiro', lat:-22.9068, lon:-43.1729, b:8},
+  {g:'World cities', n:'Toronto', lat:43.6532, lon:-79.3832, b:8},
+  {g:'Dark-sky spots', n:'Atacama Desert, Chile', lat:-22.9087, lon:-68.1997, b:1}, {g:'Dark-sky spots', n:'Mauna Kea, Hawaii', lat:19.8207, lon:-155.4681, b:1},
+  {g:'Dark-sky spots', n:'Death Valley, USA', lat:36.5054, lon:-117.0794, b:2}, {g:'Dark-sky spots', n:'Reykjavik, Iceland', lat:64.1466, lon:-21.9426, b:5},
+  {g:'Dark-sky spots', n:'Queenstown, New Zealand', lat:-45.0312, lon:168.6626, b:4}
 ];
+let knownBortle = null;
+function bortleToFrac(b){ return Math.max(0, Math.min(1, (b-1)/8)); }
 function populateCities(){
   const sel = document.getElementById('citySelect');
   const groups = {};
@@ -379,7 +374,7 @@ function populateCities(){
     const og = document.createElement('optgroup'); og.label = g;
     groups[g].forEach(c=>{
       const opt = document.createElement('option');
-      opt.value = `${c.lat},${c.lon}`; opt.textContent = c.n;
+      opt.value = `${c.lat},${c.lon},${c.b}`; opt.textContent = c.n;
       og.appendChild(opt);
     });
     sel.appendChild(og);
@@ -388,11 +383,14 @@ function populateCities(){
 populateCities();
 document.getElementById('citySelect').addEventListener('change', (e)=>{
   if(!e.target.value) return;
-  const [lat,lon] = e.target.value.split(',');
+  const [lat,lon,b] = e.target.value.split(',');
+  knownBortle = parseInt(b,10);
   document.getElementById('lat').value = parseFloat(lat).toFixed(3);
   document.getElementById('lon').value = parseFloat(lon).toFixed(3);
   run();
 });
+document.getElementById('lat').addEventListener('input', ()=>{ knownBortle = null; });
+document.getElementById('lon').addEventListener('input', ()=>{ knownBortle = null; });
 
 async function fetchCloud(lat, lon){
   try{
@@ -512,7 +510,7 @@ const scrollHint = document.getElementById('scrollHint');
 let ticking = false;
 
 function captionFor(p, isBest){
-  if(isBest) return "This is your best window — go outside now.";
+  if(isBest) return "This is your best window. Go outside now.";
   return p.reason;
 }
 
@@ -533,46 +531,18 @@ function updateProgress(){
   document.getElementById('scoreBig').textContent = p.score;
   document.getElementById('timeLbl').textContent = fmtTime(p.time);
   document.getElementById('dateLbl').textContent = p.time.toLocaleDateString(undefined,{weekday:'long', month:'short', day:'numeric'});
-  document.getElementById('phaseLbl').textContent = isBest ? 'best window' : (p.sunAlt>0 ? 'daylight' : 'tonight');
+  document.getElementById('phaseLbl').textContent = isBest ? 'best window' : (p.sunAlt>0 ? 'daylight' : 'night sky');
   document.getElementById('caption').textContent = captionFor(p, isBest);
-
-  document.querySelectorAll('.hcard').forEach(el=>{
-    el.style.outline = (+el.dataset.idx===idx) ? '2px solid var(--hot)' : 'none';
-  });
 }
 window.addEventListener('scroll', ()=>{
   if(!ticking){ requestAnimationFrame(updateProgress); ticking = true; }
 });
-
-/* ================= hourly horizontal gallery ================= */
-function buildGallery(points, best){
-  const wrap = document.getElementById('hgallery');
-  wrap.innerHTML = '';
-  points.forEach((p,i)=>{
-    const isBest = best && i>=best.start && i<=best.end;
-    const card = document.createElement('div');
-    card.className = 'hcard' + (isBest?' best':'');
-    card.dataset.idx = i;
-    card.innerHTML = `
-      <div class="time">${fmtTime(p.time)}</div>
-      <div class="bar"><div style="width:${p.score}%; background:${scoreColor(p.score)};"></div></div>
-      <div class="sc">${p.score}<span>/100</span></div>
-    `;
-    card.addEventListener('click', ()=>{
-      const total = heroScroll.offsetHeight - window.innerHeight;
-      const target = heroScroll.offsetTop + (i/(points.length-1))*total;
-      window.scrollTo({ top: target, behavior:'smooth' });
-    });
-    wrap.appendChild(card);
-  });
-}
 
 function setActiveDay(dayIndex, weekly){
   const day = weekly[dayIndex];
   state.points = day.points;
   state.best = day.best;
   state.currentIdx = 0;
-  buildGallery(day.points, day.best);
   document.querySelectorAll('.wcard').forEach((el,i)=>{ el.style.borderColor = i===dayIndex ? 'var(--hot)' : 'var(--line)'; });
   window.scrollTo({ top: heroScroll.offsetTop, behavior:'smooth' });
   updateProgress();
@@ -604,18 +574,26 @@ async function run(){
   const lat = parseFloat(document.getElementById('lat').value);
   const lon = parseFloat(document.getElementById('lon').value);
   const statusEl = document.getElementById('status');
+  if(isNaN(lat) || isNaN(lon)){
+    statusEl.textContent = 'pick a city, use your location, or enter coordinates first.';
+    return;
+  }
   statusEl.textContent = 'reading the sky…';
 
-  const [cloudSeries, light] = await Promise.all([ fetchCloud(lat,lon), estimateLightPollution(lat,lon) ]);
+  const knownAtRun = knownBortle;
+  const [cloudSeries, light] = await Promise.all([
+    fetchCloud(lat,lon),
+    knownAtRun!==null ? Promise.resolve({frac: bortleToFrac(knownAtRun), ok:true, known:true}) : estimateLightPollution(lat,lon)
+  ]);
   const notes = [];
   if(!cloudSeries) notes.push('cloud forecast unavailable, defaulting to clear');
   if(!light.ok) notes.push('satellite light data unavailable, using an estimate');
   statusEl.textContent = notes.join(' · ');
 
-  const bortle = bortleInfo(light.frac);
+  const bortle = light.known ? {b:knownAtRun, label: bortleInfo(light.frac).label} : bortleInfo(light.frac);
   document.getElementById('bortleBadge').textContent = bortle.b;
   document.getElementById('lightName').textContent = bortle.label;
-  document.getElementById('lightPct').textContent = 'Bortle ' + bortle.b + (light.ok?'':' (est.)');
+  document.getElementById('lightPct').textContent = 'Bortle ' + bortle.b + (light.known ? '' : ' (est.)');
 
   const todayMidnight = new Date(); todayMidnight.setHours(0,0,0,0);
   const weekly = [];
@@ -642,16 +620,27 @@ async function run(){
 
 document.getElementById('goBtn').addEventListener('click', run);
 document.getElementById('locBtn').addEventListener('click', ()=>{
-  if(!navigator.geolocation) return;
-  document.getElementById('status').textContent='locating…';
+  const statusEl = document.getElementById('status');
+  if(!navigator.geolocation){ statusEl.textContent = 'this browser has no geolocation support.'; return; }
+  if(location.protocol !== 'https:' && location.hostname !== 'localhost'){
+    statusEl.textContent = 'geolocation needs HTTPS. This page is loaded over ' + location.protocol;
+    return;
+  }
+  statusEl.textContent = 'locating… your browser should show a permission prompt.';
   navigator.geolocation.getCurrentPosition(pos=>{
+    knownBortle = null;
     document.getElementById('lat').value = pos.coords.latitude.toFixed(3);
     document.getElementById('lon').value = pos.coords.longitude.toFixed(3);
     run();
-  }, ()=>{ document.getElementById('status').textContent='location unavailable — enter coordinates manually.'; });
+  }, (err)=>{
+    const msgs = {
+      1: 'location permission was denied. Check your browser\'s site settings and allow location for this page.',
+      2: 'your device could not determine a location right now. GPS or location services may be off.',
+      3: 'location request timed out. Try again, or enter coordinates manually.'
+    };
+    statusEl.textContent = msgs[err.code] || ('location error: ' + err.message);
+  }, { enableHighAccuracy:false, timeout:10000, maximumAge:60000 });
 });
-
-run();
 </script>
 </body>
 </html>
