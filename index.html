@@ -491,7 +491,10 @@ searchInput.addEventListener('input', ()=>{
 
 async function doSearch(q){
   try{
-    const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=7`);
+    const controller = new AbortController();
+    const t = setTimeout(()=>controller.abort(), 6000);
+    const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=7`, {signal: controller.signal});
+    clearTimeout(t);
     if(!res.ok) throw 0;
     const data = await res.json();
     renderSearchResults(data.features || []);
@@ -515,7 +518,9 @@ function renderSearchResults(features){
     const ctx = [p.city, p.state, p.country].filter(Boolean).join(', ');
     const item = document.createElement('div');
     item.className = 'search-item';
-    item.innerHTML = `<div class="nm">${name}</div><div class="ctx">${ctx || 'coordinates only'}</div>`;
+    const nameEl = document.createElement('div'); nameEl.className = 'nm'; nameEl.textContent = name;
+    const ctxEl = document.createElement('div'); ctxEl.className = 'ctx'; ctxEl.textContent = ctx || 'coordinates only';
+    item.appendChild(nameEl); item.appendChild(ctxEl);
     item.addEventListener('click', ()=>{
       knownBortle = matchKnownBortle(p.city) ?? matchKnownBortle(p.county) ?? matchKnownBortle(p.state) ?? null;
       document.getElementById('lat').value = lat.toFixed(4);
@@ -534,10 +539,13 @@ document.addEventListener('click', (e)=>{
 
 async function fetchCloud(lat, lon){
   try{
-    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=cloudcover&forecast_days=8&timezone=auto`);
+    const controller = new AbortController();
+    const t = setTimeout(()=>controller.abort(), 8000);
+    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=cloud_cover&forecast_days=8&timezone=auto`, {signal: controller.signal});
+    clearTimeout(t);
     if(!res.ok) throw 0;
     const data = await res.json();
-    return data.hourly.time.map((t,i)=>({ time:new Date(t), cloud:data.hourly.cloudcover[i]/100 }));
+    return data.hourly.time.map((t,i)=>({ time:new Date(t), cloud:data.hourly.cloud_cover[i]/100 }));
   }catch(e){ return null; }
 }
 function nearestCloud(series, date){
@@ -581,6 +589,9 @@ function resizeArc(){
   actx.setTransform(dpr2,0,0,dpr2,0,0);
 }
 window.addEventListener('resize', resizeArc);
+window.addEventListener('resize', ()=>{
+  if(state.points){ heroScroll.style.height = (window.innerHeight*3.4) + 'px'; updateProgress(); }
+});
 resizeArc();
 
 let state = { points:null, best:null, currentIdx:0, tAnim:0 };
@@ -710,7 +721,9 @@ function buildWeekly(weekly){
 }
 
 /* ================= orchestration ================= */
+let latestRunId = 0;
 async function run(){
+  const myRunId = ++latestRunId;
   const lat = parseFloat(document.getElementById('lat').value);
   const lon = parseFloat(document.getElementById('lon').value);
   const statusEl = document.getElementById('status');
@@ -726,6 +739,7 @@ async function run(){
     resolveLight(lat, lon, knownAtRun)
   ]);
   const notes = [];
+  if(myRunId !== latestRunId) return;
   if(!cloudSeries) notes.push('cloud forecast unavailable, defaulting to clear');
   if(light.source === 'satellite-fallback') notes.push('satellite light data unavailable, using a rough estimate');
   statusEl.textContent = notes.join(' · ');
