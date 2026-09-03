@@ -71,7 +71,7 @@
     background: radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--bg2) calc(60% + var(--shift)*20%), var(--bg)), var(--bg) 70%);
   }
   canvas#stars, canvas#arc{ position:absolute; inset:0; width:100%; height:100%; }
-  canvas#arc{ pointer-events:none; }
+  canvas#arc{ pointer-events:auto; cursor:pointer; }
 
   .readout{ position:relative; z-index:2; text-align:center; pointer-events:none; }
   .phase-lbl{ font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--hot); margin-bottom:10px; opacity:.9; }
@@ -160,11 +160,12 @@
       <div class="time-lbl" id="dateLbl" style="opacity:.7;margin-bottom:2px;"></div>
       <div class="score-big"><span id="scoreBig">–</span><span class="u">/100</span></div>
       <div class="time-lbl" id="timeLbl"></div>
-      <div class="caption" id="caption">Pick a city, use your location, or enter coordinates to see tonight's sky.</div>
+      <div class="caption" id="caption">Pick a city, use your location, or enter coordinates to see tonight's sky. Click anywhere on the timeline below to jump straight to that time.</div>
     </div>
     <div class="badges">
       <div class="badge"><canvas id="moonIcon"></canvas><div class="t"><b id="moonName">–</b><span id="moonPct">–</span></div></div>
       <div class="badge"><div class="dot" id="bortleBadge">–</div><div class="t"><b id="lightName">–</b><span id="lightPct">–</span></div></div>
+      <div class="badge"><div class="dot" id="cloudBadge">–</div><div class="t"><b id="cloudName">–</b><span id="cloudPct">–</span></div></div>
     </div>
   </div>
 </section>
@@ -253,14 +254,18 @@ function bortleInfo(frac){
   return {b,label};
 }
 
-/* ================= India regional grid (pre-built static file, no server, no rate limit) ================= */
-const INDIA_BOUNDS = {minLat:6, maxLat:37.5, minLon:68, maxLon:97.5};
-// Fetches the pre-built grid from your repo (see build_grid.py to regenerate it).
-const INDIA_GRID_URL = 'https://raw.githubusercontent.com/Tanaybaviskar/skyscore/main/india_bortle_grid.bin';
-let indiaGridPromise = null;
-function loadIndiaGrid(){
-  if(!indiaGridPromise){
-    indiaGridPromise = fetch(INDIA_GRID_URL)
+/* ================= regional grids (pre-built static files, no server, no rate limit) =================
+   Add an entry here for every country you generate with build_grid.py. */
+const GRIDS = [
+  { code:'IND', minLat:6, maxLat:37.5, minLon:68, maxLon:97.5,
+    url:'https://raw.githubusercontent.com/Tanaybaviskar/skyscore/main/india_bortle_grid.bin' }
+  // { code:'USA', minLat:24, maxLat:49.5, minLon:-125, maxLon:-66,
+  //   url:'https://raw.githubusercontent.com/Tanaybaviskar/skyscore/main/usa_bortle_grid.bin' },
+];
+const gridCache = {};
+function loadGrid(entry){
+  if(!gridCache[entry.code]){
+    gridCache[entry.code] = fetch(entry.url)
       .then(r=>{ if(!r.ok) throw 0; return r.arrayBuffer(); })
       .then(buf=>{
         const dv = new DataView(buf);
@@ -271,11 +276,12 @@ function loadIndiaGrid(){
       })
       .catch(()=>null);
   }
-  return indiaGridPromise;
+  return gridCache[entry.code];
 }
-async function tryIndiaGrid(lat, lon){
-  if(lat<INDIA_BOUNDS.minLat || lat>INDIA_BOUNDS.maxLat || lon<INDIA_BOUNDS.minLon || lon>INDIA_BOUNDS.maxLon) return null;
-  const g = await loadIndiaGrid();
+async function tryRegionalGrid(lat, lon){
+  const entry = GRIDS.find(g => lat>=g.minLat && lat<=g.maxLat && lon>=g.minLon && lon<=g.maxLon);
+  if(!entry) return null;
+  const g = await loadGrid(entry);
   if(!g) return null;
   const r0 = Math.round((lat-g.minLat)/g.step), c0 = Math.round((lon-g.minLon)/g.step);
   for(let rad=0; rad<=2; rad++){
@@ -291,12 +297,12 @@ async function tryIndiaGrid(lat, lon){
   return null;
 }
 
-/* ================= light pollution resolution chain: known city > India grid > satellite ================= */
+/* ================= light pollution resolution chain: known city > regional grid > satellite ================= */
 async function resolveLight(lat, lon, knownAtRun){
   if(knownAtRun !== null){
     return { frac: bortleToFrac(knownAtRun), b: knownAtRun, source: 'known' };
   }
-  const gridVal = await tryIndiaGrid(lat, lon);
+  const gridVal = await tryRegionalGrid(lat, lon);
   if(gridVal !== null){
     return { frac: bortleToFrac(gridVal), b: gridVal, source: 'grid' };
   }
@@ -408,7 +414,7 @@ function computeDayPoints(baseMidnight, lat, lon, cloudSeries, light){
     const cloud = nearestCloud(cloudSeries, time);
     const score = Math.round(100*darkness*(1-0.55*moonPenalty)*(1-0.85*cloud)*(1-0.4*light.frac));
     const category = reasonCategory(sunAlt, cloud, moonPenalty, light.frac);
-    pts.push({ time, score, sunAlt, moonAlt, moon, reason: pickReason(category) });
+    pts.push({ time, score, sunAlt, moonAlt, moon, cloud, reason: pickReason(category) });
   }
   return pts;
 }
@@ -555,6 +561,12 @@ function nearestCloud(series, date){
   return best.cloud;
 }
 function fmtTime(d){ return d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }
+function cloudLabel(cloud){
+  if(cloud<0.2) return 'Clear';
+  if(cloud<0.5) return 'Partly cloudy';
+  if(cloud<0.8) return 'Mostly cloudy';
+  return 'Overcast';
+}
 function scoreColor(s){
   const dim=[58,63,102], mid=[111,140,255], hot=[255,209,102];
   let a,b,t;
@@ -589,6 +601,19 @@ function resizeArc(){
   actx.setTransform(dpr2,0,0,dpr2,0,0);
 }
 window.addEventListener('resize', resizeArc);
+
+arcCanvas.addEventListener('click', (e)=>{
+  if(!state.points) return;
+  const rect = arcCanvas.getBoundingClientRect();
+  const x = e.clientX - rect.left, y = e.clientY - rect.top;
+  const bandTop = AH*0.68, bandH = AH*0.16;
+  if(y < bandTop-40 || y > bandTop+bandH+40) return; // ignore clicks away from the graph
+  const padX = AW*0.08, n = state.points.length;
+  const stepX = (AW-padX*2)/(n-1);
+  const idx = Math.max(0, Math.min(n-1, Math.round((x-padX)/stepX)));
+  const total = heroScroll.offsetHeight - window.innerHeight;
+  window.scrollTo({ top: heroScroll.offsetTop + (idx/(n-1))*total, behavior:'smooth' });
+});
 window.addEventListener('resize', ()=>{
   if(state.points){ heroScroll.style.height = (window.innerHeight*3.4) + 'px'; updateProgress(); }
 });
@@ -684,6 +709,11 @@ function updateProgress(){
   document.getElementById('dateLbl').textContent = p.time.toLocaleDateString(undefined,{weekday:'long', month:'short', day:'numeric'});
   document.getElementById('phaseLbl').textContent = isBest ? 'best window' : (p.sunAlt>0 ? 'daylight' : 'night sky');
   document.getElementById('caption').textContent = captionFor(p, isBest);
+
+  const cloudPct = Math.round(p.cloud*100);
+  document.getElementById('cloudBadge').textContent = cloudPct + '%';
+  document.getElementById('cloudName').textContent = cloudLabel(p.cloud);
+  document.getElementById('cloudPct').textContent = 'at ' + fmtTime(p.time);
 }
 window.addEventListener('scroll', ()=>{
   if(!ticking){ requestAnimationFrame(updateProgress); ticking = true; }
