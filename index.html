@@ -22,7 +22,7 @@
 
   /* ---- top control bar ---- */
   .topbar{
-    position:fixed; top:0; left:0; right:0; z-index:50;
+    position:relative; z-index:50;
     display:flex; gap:8px; align-items:center; flex-wrap:wrap;
     padding:14px 20px; backdrop-filter: blur(10px); background:rgba(5,8,16,0.55);
     border-bottom:1px solid var(--line);
@@ -44,7 +44,7 @@
   }
   #placeSearch:focus{ outline:none; border-color:var(--hot); }
   .search-results{
-    position:absolute; top:calc(100% + 6px); left:0; width:300px; max-height:280px; overflow-y:auto;
+    position:absolute; top:calc(100% + 6px); left:0; width:300px; max-width:calc(100vw - 32px); max-height:280px; overflow-y:auto;
     background:#0e1430; border:1px solid var(--line); border-radius:10px; padding:6px; z-index:60; display:none;
     box-shadow:0 14px 30px rgba(0,0,0,0.4);
   }
@@ -75,7 +75,7 @@
 
   .readout{ position:relative; z-index:2; text-align:center; pointer-events:none; }
   .phase-lbl{ font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--hot); margin-bottom:10px; opacity:.9; }
-  .score-big{ font-family:'Cormorant Garamond',serif; font-weight:600; font-size:clamp(72px,13vw,150px); line-height:1; }
+  .score-big{ font-family:'Cormorant Garamond',serif; font-weight:600; font-size:clamp(52px,15vw,150px); line-height:1; }
   .score-big .u{ font-size:.28em; color:var(--muted); font-weight:500; margin-left:6px; }
   .time-lbl{ font-family:'JetBrains Mono',monospace; font-size:15px; color:var(--muted); margin-top:8px; }
   .caption{ font-family:'Cormorant Garamond',serif; font-style:italic; font-size:20px; color:var(--text); margin-top:16px; max-width:36ch; margin-left:auto; margin-right:auto; min-height:28px; }
@@ -466,8 +466,8 @@ document.getElementById('citySelect').addEventListener('change', (e)=>{
   document.getElementById('lon').value = parseFloat(lon).toFixed(3);
   run();
 });
-document.getElementById('lat').addEventListener('input', ()=>{ knownBortle = null; });
-document.getElementById('lon').addEventListener('input', ()=>{ knownBortle = null; });
+document.getElementById('lat').addEventListener('input', ()=>{ knownBortle = null; document.getElementById('citySelect').value=''; });
+document.getElementById('lon').addEventListener('input', ()=>{ knownBortle = null; document.getElementById('citySelect').value=''; });
 
 /* ================= expanded known-Bortle lookup (used by search results too) ================= */
 const BORTLE_LOOKUP = {};
@@ -532,6 +532,7 @@ function renderSearchResults(features){
       document.getElementById('lat').value = lat.toFixed(4);
       document.getElementById('lon').value = lon.toFixed(4);
       searchInput.value = name;
+      document.getElementById('citySelect').value = '';
       searchResultsEl.classList.remove('show');
       run();
     });
@@ -690,18 +691,8 @@ function captionFor(p, isBest){
   return p.reason;
 }
 
-function updateProgress(){
-  ticking = false;
-  if(!state.points) return;
-  const rect = heroScroll.getBoundingClientRect();
-  const total = heroScroll.offsetHeight - window.innerHeight;
-  const scrolled = Math.min(total, Math.max(0, -rect.top));
-  const progress = total>0 ? scrolled/total : 0;
-  const idx = Math.round(progress*(state.points.length-1));
+function renderAtIndex(idx){
   state.currentIdx = idx;
-  document.documentElement.style.setProperty('--shift', progress);
-  scrollHint.style.opacity = progress > 0.03 ? 0 : 1;
-
   const p = state.points[idx];
   const isBest = state.best && idx>=state.best.start && idx<=state.best.end;
   document.getElementById('scoreBig').textContent = p.score;
@@ -715,6 +706,19 @@ function updateProgress(){
   document.getElementById('cloudName').textContent = cloudLabel(p.cloud);
   document.getElementById('cloudPct').textContent = 'at ' + fmtTime(p.time);
 }
+
+function updateProgress(){
+  ticking = false;
+  if(!state.points) return;
+  const rect = heroScroll.getBoundingClientRect();
+  const total = heroScroll.offsetHeight - window.innerHeight;
+  const scrolled = Math.min(total, Math.max(0, -rect.top));
+  const progress = total>0 ? scrolled/total : 0;
+  const idx = Math.round(progress*(state.points.length-1));
+  document.documentElement.style.setProperty('--shift', progress);
+  scrollHint.style.opacity = progress > 0.03 ? 0 : 1;
+  renderAtIndex(idx);
+}
 window.addEventListener('scroll', ()=>{
   if(!ticking){ requestAnimationFrame(updateProgress); ticking = true; }
 });
@@ -723,10 +727,14 @@ function setActiveDay(dayIndex, weekly){
   const day = weekly[dayIndex];
   state.points = day.points;
   state.best = day.best;
-  state.currentIdx = 0;
+  // Bug fix: this always opened on midnight (index 0) regardless of the real time.
+  // For today, open on the current hour instead so the first thing you see is now's score.
+  const startIdx = dayIndex===0 ? Math.min(23, new Date().getHours()) : 0;
+  renderAtIndex(startIdx);
   document.querySelectorAll('.wcard').forEach((el,i)=>{ el.style.borderColor = i===dayIndex ? 'var(--hot)' : 'var(--line)'; });
-  window.scrollTo({ top: heroScroll.offsetTop, behavior:'smooth' });
-  updateProgress();
+  const total = heroScroll.offsetHeight - window.innerHeight;
+  const targetY = heroScroll.offsetTop + (total>0 ? (startIdx/(day.points.length-1))*total : 0);
+  window.scrollTo({ top: targetY, behavior:'smooth' });
 }
 
 function buildWeekly(weekly){
@@ -814,6 +822,7 @@ document.getElementById('locBtn').addEventListener('click', ()=>{
   statusEl.textContent = 'locating… your browser should show a permission prompt.';
   navigator.geolocation.getCurrentPosition(pos=>{
     knownBortle = null;
+    document.getElementById('citySelect').value = '';
     document.getElementById('lat').value = pos.coords.latitude.toFixed(3);
     document.getElementById('lon').value = pos.coords.longitude.toFixed(3);
     run();
