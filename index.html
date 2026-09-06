@@ -80,14 +80,14 @@
   .time-lbl{ font-family:'JetBrains Mono',monospace; font-size:15px; color:var(--muted); margin-top:8px; }
   .caption{ font-family:'Cormorant Garamond',serif; font-style:italic; font-size:20px; color:var(--text); margin-top:16px; max-width:36ch; margin-left:auto; margin-right:auto; min-height:28px; }
 
-  .badges{ position:absolute; bottom:24px; left:0; right:0; display:flex; justify-content:center; gap:14px; z-index:2; padding:0 16px; overflow-x:auto; flex-wrap:nowrap; -webkit-overflow-scrolling:touch; }
-  .badges::-webkit-scrollbar{ display:none; }
-  .badge{ display:flex; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:8px 12px; flex-shrink:0; white-space:nowrap; }
+  .badges{ position:absolute; bottom:28px; left:16px; right:16px; display:grid; grid-template-columns:repeat(3,1fr); gap:10px; z-index:2; }
+  .badge{ display:flex; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:8px 10px; min-width:0; }
+  .badge canvas, .badge .dot{ flex-shrink:0; }
   .badge canvas{ width:30px; height:30px; }
   .badge .dot{ width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:12px; border:1.5px solid var(--line); }
-  .badge .t{ font-family:'JetBrains Mono',monospace; font-size:11px; }
-  .badge .t b{ display:block; font-size:12px; font-weight:500; color:var(--text); }
-  .badge .t span{ color:var(--muted); }
+  .badge .t{ font-family:'JetBrains Mono',monospace; font-size:11px; min-width:0; overflow:hidden; }
+  .badge .t b{ display:block; font-size:12px; font-weight:500; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .badge .t span{ color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; }
 
   .scroll-hint{
     position:absolute; top:26px; left:0; right:0; text-align:center; z-index:2;
@@ -608,7 +608,7 @@ function getBand(){
   // Fixed pixel gap above the badges row, so the graph never collides with it
   // regardless of screen height (percentage-based positioning was the bug here).
   const bandH = Math.min(AH*0.16, 90);
-  const bandBottom = AH - 100;
+  const bandBottom = AH - 140;
   return { bandTop: bandBottom - bandH, bandH };
 }
 
